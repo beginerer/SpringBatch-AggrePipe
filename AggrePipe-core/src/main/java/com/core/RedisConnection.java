@@ -1,105 +1,135 @@
 package com.core;
 
+import io.lettuce.core.RedisCommandInterruptedException;
+import io.lettuce.core.RedisCommandTimeoutException;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.TransactionResult;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.RedisAsyncCommands;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.Objects;
 import java.util.concurrent.*;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
+
+
 
 /**
  * This class is not thread-safe.
  */
 public class RedisConnection {
 
+    public final static TimeUnit DEFAULT_TIME_UNIT = TimeUnit.MILLISECONDS;
+    public final static int DEFAULT_TIME_VALUE = 500;
     private final StatefulRedisConnection<String,String> connection;
-
-    private final StatefulRedisConnection<String,String> commonConnectionBus;
-
     private final RedisAsyncCommands<String,String> async;
-
+    private final Logger logger = LoggerFactory.getLogger(RedisConnection.class);
     private boolean inTx;
 
-    public final static TimeUnit DEFAULT_TIME_UNIT = TimeUnit.MILLISECONDS;
-
-    public final static int DEFAULT_TIME_VALUE = 500;
-
-    private final Logger logger = LoggerFactory.getLogger(RedisConnection.class);
 
 
-
-    public RedisConnection(StatefulRedisConnection<String, String> connection, RedisAsyncCommands<String, String> async,
-                           StatefulRedisConnection<String, String> commonConnectionBus) {
+    public RedisConnection(StatefulRedisConnection<String, String> connection, RedisAsyncCommands<String, String> async) {
         this.connection = connection;
-        this.commonConnectionBus = commonConnectionBus;
         this.async = async;
         this.inTx = false;
     }
 
-    /**
-     * Executes a MULTI/EXEC transaction in pipelined mode.
-     *
-     * <p><Strong>Warnings:</Strong></p>
-     * <p>- Not thread-safe: use this instance from a single thread only.</p>
-     * <p>- Assumes autoFlushCommands=false; do not change it inside {@code commands}.</p>
-     * <p>- Do NOT call MULTI/EXEC/DISCARD/WATCH inside {@code commands}; queue only regular ops.</p>
-     * <p>- On failure (timeout/network/server error), this connection is closed and must not be reused.</p>
-     */
-    public CompletableFuture<TransactionResult> transactionPipeline(Consumer<RedisAsyncCommands<String,String>> commands) {
+
+
+
+
+    public CompletableFuture<Boolean> casWithWatch(String key, Long value, BiFunction<Long,Long,Long> f, int maxTries) {
 
         final var conn = connection;
 
-        if(commands == null)
-            throw new IllegalArgumentException("[ERROR] commands is null");
         if(conn == null || !conn.isOpen())
-            throw new ConnectionClosedException("[ERROR] connection is closed");
-        if(inTx)
-            throw new IllegalStateException("[ERROR] connection is already in transaction");
+            return CompletableFuture.failedFuture(new ConnectionClosedException("[ERROR] connection is closed"));
 
-        try {
-            inTx = true;
-            async.multi();
-            commands.accept(async);
-            RedisFuture<TransactionResult> exec = async.exec();
-            conn.flushCommands();
+        if(key == null)
+            return CompletableFuture.failedFuture(new IllegalArgumentException("[ERROR] key is null"));
 
-            return exec.toCompletableFuture()
-                    .orTimeout(DEFAULT_TIME_VALUE,DEFAULT_TIME_UNIT)
-                    .whenComplete((r, ex) -> {
-                        if(ex != null) {
-                            try{
-                                conn.close();
-                            }
-                            catch (Exception ignore) {}
-                        }
-                        inTx = false;
-                    });
-        }catch (RuntimeException e) {
+
+        for (int attempts = 0; attempts < maxTries; attempts++) {
+            boolean watched = false;
+            boolean enteredMulti = false;
+            boolean execSent = false;
+
+
             try {
-                async.discard();
+                if (inTx)
+                    return CompletableFuture.failedFuture(new IllegalStateException("[ERROR] connection is already in transaction"));
+
+
+                inTx = true;
+                var watchF = async.watch(key);
+                var getF = async.get(key);
                 conn.flushCommands();
-            }catch (Exception ignore) {
-                logger.warn("[ERROR] Failed to dispatch transaction commands",ignore);
-            }finally {
+
+                String watchReply = watchF.get(DEFAULT_TIME_VALUE, DEFAULT_TIME_UNIT);
+
+                if(!"OK".equalsIgnoreCase(watchReply))
+                    continue;
+                watched = true;
+
+                String cur = getF.get(DEFAULT_TIME_VALUE, DEFAULT_TIME_UNIT);
+
+                if (cur == null)
+                    return CompletableFuture.failedFuture(new KeyNotFoundException("[ERROR] key is not found. key=%s".formatted(key)));
+
+                long newValue = f.apply(value,Long.parseLong(cur));
+
+
+                async.multi();
+                enteredMulti = true;
+                var setF = async.set(key, String.valueOf(newValue));
+                var execF = async.exec();
+                conn.flushCommands();
+                execSent = true;
+
+
+                TransactionResult tr = null;
+
+                try {
+                    tr = execF.get(DEFAULT_TIME_VALUE,DEFAULT_TIME_UNIT);
+                }catch (ExecutionException e) {
+                    return CompletableFuture.failedFuture(e);
+                }
+
+                if(tr.wasDiscarded())
+                    continue;
+
+
+                String reply = setF.get(DEFAULT_TIME_VALUE, DEFAULT_TIME_UNIT);
+
+                if ("OK".equalsIgnoreCase(reply))
+                    return CompletableFuture.completedFuture(true);
+
+
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return CompletableFuture.failedFuture(e);
+            } catch (ExecutionException | CancellationException e) {
+                return CompletableFuture.failedFuture(e);
+            } catch (TimeoutException e){
+                try {Thread.sleep(500);}
+                catch (InterruptedException ie) { Thread.currentThread().interrupt();;}
+            } finally {
                 inTx = false;
+                try {
+                    if(!execSent) {
+                        if(enteredMulti)
+                            async.discard();
+                        else if(watched)
+                            async.unwatch();
+                        conn.flushCommands();
+                    }
+                } catch (Exception ignore) {}
             }
-            throw new TransactionDispatchException("[ERROR] Failed to dispatch transaction commands",e);
         }
-    }
-
-    public CompletableFuture<String> readByKey(String key) {
-        if(key == null || key.isEmpty())
-            throw  new IllegalArgumentException("[ERROR] key is null");
-
-        final var conn = this.commonConnectionBus;
-
-        if(conn == null || !conn.isOpen())
-            throw new ConnectionPoolClosedException("Connection pool/common connection is closed");
-
-        RedisAsyncCommands<String, String> async = conn.async();
-        return async.get(key).toCompletableFuture().orTimeout(DEFAULT_TIME_VALUE, DEFAULT_TIME_UNIT);
+        return CompletableFuture.completedFuture(false);
     }
 
 

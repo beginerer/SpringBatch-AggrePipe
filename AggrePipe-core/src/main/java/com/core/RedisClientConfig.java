@@ -6,6 +6,7 @@ import io.lettuce.core.codec.StringCodec;
 import io.lettuce.core.support.BoundedPoolConfig;
 
 
+
 public class RedisClientConfig {
 
     private RedisClient redisClient;
@@ -21,6 +22,7 @@ public class RedisClientConfig {
     public static final int DEFAULT_MAX_IDLE = 8;
 
     public static final int DEFAULT_MIN_IDLE = 0;
+
 
 
 
@@ -41,6 +43,7 @@ public class RedisClientConfig {
     public RedisClientConfig(RedisURI redisURI) {
         this(redisURI,StringCodec.UTF8,DEFAULT_MAX_TOTAL,DEFAULT_MAX_IDLE,DEFAULT_MIN_IDLE);
     }
+
 
 
     public RedisClient getRedisClient() {

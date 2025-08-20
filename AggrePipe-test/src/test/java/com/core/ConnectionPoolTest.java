@@ -30,14 +30,7 @@ public class ConnectionPoolTest {
     private static final RedisContainer container = new RedisContainer(
             RedisContainer.DEFAULT_IMAGE_NAME.withTag(RedisContainer.DEFAULT_TAG));
 
-    @BeforeEach
-    public void before() {
-        String redisURI = container.getRedisURI();
-        RedisURI uri = RedisURI.create(redisURI);
 
-        config = new RedisClientConfig(uri);
-        pool = new RedisConnectionPool(config);
-    }
 
     @Test
     public void test() {
@@ -115,14 +108,26 @@ public class ConnectionPoolTest {
 
 
 
+    @BeforeEach
+    public void before() {
+        String redisURI = container.getRedisURI();
+        RedisURI uri = RedisURI.create(redisURI);
+
+        config = new RedisClientConfig(uri);
+        pool = new RedisConnectionPool(config);
+    }
+
     @AfterEach
     public void after() {
         pool.releaseConnectionPool();
-        final RedisClient redisClient = config.getRedisClient();
+        RedisClient redisClient = config.getRedisClient();
 
         if(redisClient !=null) {
             redisClient.shutdown();
         }
     }
+
+
+
 
 }

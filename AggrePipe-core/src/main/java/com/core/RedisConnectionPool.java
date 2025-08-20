@@ -18,8 +18,6 @@ public class RedisConnectionPool {
 
     private volatile BoundedAsyncPool<StatefulRedisConnection<String, String>> pool;
 
-    private volatile StatefulRedisConnection<String, String>  commonConnectionBus;
-
     private final AtomicBoolean open;
 
     private final Logger logger = LoggerFactory.getLogger(RedisConnectionPool.class);
@@ -36,7 +34,6 @@ public class RedisConnectionPool {
         this.open = new AtomicBoolean(true);
         StatefulRedisConnection<String, String> connection = redisClient.connect();
         connection.setAutoFlushCommands(true);
-        this.commonConnectionBus = connection;
     }
 
 
@@ -57,7 +54,7 @@ public class RedisConnectionPool {
                 }
                 throw new CompletionException(new ConnectionPoolClosedException("[ERROR] Connection pool is closed"));
             }
-            return new RedisConnection(conn,conn.async(), commonConnectionBus);
+            return new RedisConnection(conn,conn.async());
         });
     }
 
@@ -90,7 +87,6 @@ public class RedisConnectionPool {
      */
     public void releaseConnectionPool() {
         final BoundedAsyncPool<StatefulRedisConnection<String, String>> p;
-        final StatefulRedisConnection<String,String> conn;
 
         synchronized (this) {
             if(!isOpen())
@@ -99,21 +95,12 @@ public class RedisConnectionPool {
             open.set(false);
             p = this.pool;
             this.pool = null;
-            conn = this.commonConnectionBus;
-            this.commonConnectionBus = null;
         }
         if(p != null) {
             try{
                 p.close();
             } catch (Exception ignore) {
                 logger.warn("[ERROR] Failed to close pool",ignore);
-            }
-        }
-        if(conn!=null) {
-            try{
-                conn.close();
-            }catch (Exception ignore) {
-                logger.warn("[ERROR] Failed to close common connection ");
             }
         }
     }
