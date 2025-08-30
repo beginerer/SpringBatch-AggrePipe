@@ -1,5 +1,6 @@
 package com.core;
 
+import com.excpetion.ConnectionPoolClosedException;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.support.AsyncConnectionPoolSupport;
@@ -14,9 +15,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class RedisConnectionPool {
 
+
     private final RedisClient redisClient;
 
     private volatile BoundedAsyncPool<StatefulRedisConnection<String, String>> pool;
+
+    private final TimeoutConfig timeoutConfig;
 
     private final AtomicBoolean open;
 
@@ -32,6 +36,7 @@ public class RedisConnectionPool {
                     return conn;
                 }), config.getBoundedPoolConfig(),false);
         this.open = new AtomicBoolean(true);
+        this.timeoutConfig = config.getTimeoutConfig();
         StatefulRedisConnection<String, String> connection = redisClient.connect();
         connection.setAutoFlushCommands(true);
     }
@@ -54,7 +59,7 @@ public class RedisConnectionPool {
                 }
                 throw new CompletionException(new ConnectionPoolClosedException("[ERROR] Connection pool is closed"));
             }
-            return new RedisConnection(conn,conn.async());
+            return new RedisConnection(conn,conn.async(),timeoutConfig);
         });
     }
 

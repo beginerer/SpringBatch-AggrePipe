@@ -1,4 +1,4 @@
-package com.core;
+package com.excpetion;
 
 public class KeyNotFoundException extends RuntimeException {
 

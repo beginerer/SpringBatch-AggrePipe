@@ -1,20 +1,17 @@
 package com.core;
 
-import io.lettuce.core.RedisCommandInterruptedException;
-import io.lettuce.core.RedisCommandTimeoutException;
-import io.lettuce.core.RedisFuture;
+import com.core.operation.LuaOperation;
+import com.excpetion.ConnectionClosedException;
+import com.excpetion.KeyNotFoundException;
 import io.lettuce.core.TransactionResult;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.RedisAsyncCommands;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Objects;
+
 import java.util.concurrent.*;
 import java.util.function.BiFunction;
-import java.util.function.Consumer;
-import java.util.function.Function;
-
 
 
 /**
@@ -22,22 +19,30 @@ import java.util.function.Function;
  */
 public class RedisConnection {
 
-    public final static TimeUnit DEFAULT_TIME_UNIT = TimeUnit.MILLISECONDS;
-    public final static int DEFAULT_TIME_VALUE = 500;
     private final StatefulRedisConnection<String,String> connection;
+
     private final RedisAsyncCommands<String,String> async;
-    private final Logger logger = LoggerFactory.getLogger(RedisConnection.class);
+
+    public final TimeUnit timeUnit;
+
+    public final long timeAmount;
+
     private boolean inTx;
 
+    private final Logger logger = LoggerFactory.getLogger(RedisConnection.class);
 
 
-    public RedisConnection(StatefulRedisConnection<String, String> connection, RedisAsyncCommands<String, String> async) {
+
+
+
+
+    public RedisConnection(StatefulRedisConnection<String, String> connection, RedisAsyncCommands<String, String> async,TimeoutConfig timeoutConfig) {
         this.connection = connection;
         this.async = async;
         this.inTx = false;
+        this.timeUnit = timeoutConfig.getTimeUnit();
+        this.timeAmount = timeoutConfig.getAmount();
     }
-
-
 
 
 
@@ -68,13 +73,13 @@ public class RedisConnection {
                 var getF = async.get(key);
                 conn.flushCommands();
 
-                String watchReply = watchF.get(DEFAULT_TIME_VALUE, DEFAULT_TIME_UNIT);
+                String watchReply = watchF.get(timeAmount, timeUnit);
 
                 if(!"OK".equalsIgnoreCase(watchReply))
                     continue;
                 watched = true;
 
-                String cur = getF.get(DEFAULT_TIME_VALUE, DEFAULT_TIME_UNIT);
+                String cur = getF.get(timeAmount, timeUnit);
 
                 if (cur == null)
                     return CompletableFuture.failedFuture(new KeyNotFoundException("[ERROR] key is not found. key=%s".formatted(key)));
@@ -93,7 +98,7 @@ public class RedisConnection {
                 TransactionResult tr = null;
 
                 try {
-                    tr = execF.get(DEFAULT_TIME_VALUE,DEFAULT_TIME_UNIT);
+                    tr = execF.get(timeAmount, timeUnit);
                 }catch (ExecutionException e) {
                     return CompletableFuture.failedFuture(e);
                 }
@@ -102,7 +107,7 @@ public class RedisConnection {
                     continue;
 
 
-                String reply = setF.get(DEFAULT_TIME_VALUE, DEFAULT_TIME_UNIT);
+                String reply = setF.get(timeAmount, timeUnit);
 
                 if ("OK".equalsIgnoreCase(reply))
                     return CompletableFuture.completedFuture(true);
@@ -115,7 +120,7 @@ public class RedisConnection {
                 return CompletableFuture.failedFuture(e);
             } catch (TimeoutException e){
                 try {Thread.sleep(500);}
-                catch (InterruptedException ie) { Thread.currentThread().interrupt();;}
+                catch (InterruptedException ie) { Thread.currentThread().interrupt();}
             } finally {
                 inTx = false;
                 try {
@@ -132,6 +137,11 @@ public class RedisConnection {
         return CompletableFuture.completedFuture(false);
     }
 
+    // <T> RedisFuture<T> eval(String script, ScriptOutputType type, K[] keys, V... values);
+    public void lua(LuaOperation operation) {
+        async.eval(operation.getLuaScript(),)
+    }
+
 
     public void releaseConnection() {
         boolean mustClose = false;
@@ -139,7 +149,7 @@ public class RedisConnection {
             if(inTx) {
                 var discard = async.discard();
                 connection.flushCommands();
-                String response = discard.toCompletableFuture().get(DEFAULT_TIME_VALUE,DEFAULT_TIME_UNIT);
+                String response = discard.toCompletableFuture().get(timeAmount, timeUnit);
                 if(!"OK".equalsIgnoreCase(response))
                     mustClose = true;
             }

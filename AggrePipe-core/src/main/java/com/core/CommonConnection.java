@@ -1,6 +1,9 @@
 package com.core;
 
+import com.excpetion.ConnectionClosedException;
+import com.excpetion.ConnectionPoolClosedException;
 import io.lettuce.core.RedisClient;
+import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.RedisAsyncCommands;
 
@@ -27,7 +30,7 @@ public class CommonConnection {
 
 
 
-    public CompletableFuture<Long> incrBy(String key, long number) {
+    public RedisFuture<Long> incrBy(String key, long number) {
 
         final var conn = connection;
 
@@ -41,10 +44,11 @@ public class CommonConnection {
             throw new ConnectionClosedException("[ERROR] connection is closed");
 
 
-        return conn.async().incrby(key,number).toCompletableFuture().orTimeout(DEFAULT_TIME_VALUE,DEFAULT_TIME_UNIT);
+        return conn.async().incrby(key,number);
     }
 
-    public CompletableFuture<Long> incr(String key) {
+
+    public Long incr(String key) {
 
         final var conn = connection;
 
@@ -54,14 +58,13 @@ public class CommonConnection {
         if(conn == null)
             throw new ConnectionClosedException("[ERROR] connection is closed");
 
-        Long value = conn.sync().incr(key);
 
-        return CompletableFuture.completedFuture(value);
+        return conn.sync().incr(key);
     }
 
 
 
-    public CompletableFuture<String> readByKey(String key) {
+    public RedisFuture<String> readByKey(String key) {
         if(key == null || key.isEmpty())
             throw  new IllegalArgumentException("[ERROR] key is null");
 
@@ -71,7 +74,7 @@ public class CommonConnection {
             throw new ConnectionPoolClosedException("Connection pool/common connection is closed");
 
         RedisAsyncCommands<String, String> async = conn.async();
-        return async.get(key).toCompletableFuture().orTimeout(DEFAULT_TIME_VALUE, DEFAULT_TIME_UNIT);
+        return async.get(key);
     }
 
 

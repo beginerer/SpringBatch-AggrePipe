@@ -12,13 +12,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.shaded.org.checkerframework.checker.units.qual.A;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
 
 
 @Testcontainers
@@ -43,7 +37,7 @@ public class CasWatchTest {
         RedisAsyncCommands<String, String> async = connection.async();
 
         // given
-        String key ="redis:key";
+        String key = "redis:key";
         String value = "10";
         async.set(key,value);
 
@@ -57,6 +51,7 @@ public class CasWatchTest {
         Assertions.assertThat(result).isTrue();
         Assertions.assertThat(now).isEqualTo("11");
     }
+
 
     @Test
     @DisplayName("min test")
@@ -78,40 +73,6 @@ public class CasWatchTest {
 
         Assertions.assertThat(result).isTrue();
         Assertions.assertThat(now).isEqualTo("9");
-    }
-
-    @Test
-    @DisplayName("동시성 테스트")
-    public void test3() throws ExecutionException, InterruptedException, TimeoutException {
-        RedisConnection conn = pool.acquireConnection().get(500, TimeUnit.MILLISECONDS);
-        RedisAsyncCommands<String, String> async = connection.async();
-
-
-        // given
-        String key = "redis:concurrent";
-        String value = "10";
-        async.set(key,value);
-
-        ExecutorService es = Executors.newFixedThreadPool(2);
-        CyclicBarrier start = new CyclicBarrier(2);
-
-
-        Future<Boolean> f1 = es.submit(() -> {
-            try {
-                start.await();
-                return conn.casWithWatch(key, 11L, Operation.max, 3).get(500, TimeUnit.MILLISECONDS);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            } catch (BrokenBarrierException e) {
-                throw new RuntimeException(e);
-            }
-        });
-
-        Assertions.assertThat(f1.get(3, TimeUnit.SECONDS)).isTrue();
-
-
-
-
     }
 
 

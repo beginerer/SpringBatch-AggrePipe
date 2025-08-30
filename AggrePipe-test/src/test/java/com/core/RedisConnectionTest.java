@@ -99,6 +99,7 @@ public class RedisConnectionTest {
         Assertions.assertThat(s).isNull();
     }
 
+
     @Test
     public void test3() throws ExecutionException, InterruptedException, TimeoutException {
         RedisAsyncCommands<String, String> async = connection.async();
