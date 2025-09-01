@@ -1,5 +1,7 @@
 package com.core;
 
+import com.core.config.RedisClientConfig;
+import com.core.config.TimeoutConfig;
 import com.excpetion.ConnectionPoolClosedException;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.api.StatefulRedisConnection;
@@ -32,7 +34,7 @@ public class RedisConnectionPool {
         this.redisClient = config.getRedisClient();
         this.pool = AsyncConnectionPoolSupport.createBoundedObjectPool(() ->
                 redisClient.connectAsync(config.getStringCodec(), config.getRedisURI()).thenApply(conn -> {
-                    conn.setAutoFlushCommands(false);
+                    conn.setAutoFlushCommands(true);
                     return conn;
                 }), config.getBoundedPoolConfig(),false);
         this.open = new AtomicBoolean(true);

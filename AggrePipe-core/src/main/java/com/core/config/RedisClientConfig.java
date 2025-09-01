@@ -1,4 +1,4 @@
-package com.core;
+package com.core.config;
 
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;
@@ -27,7 +27,7 @@ public class RedisClientConfig {
 
 
 
-    public RedisClientConfig(RedisURI redisURI, StringCodec stringCodec, int maxTotal, int maxIdle, int minIdle,TimeoutConfig timeoutConfig) {
+    public RedisClientConfig(RedisURI redisURI, StringCodec stringCodec, int maxTotal, int maxIdle, int minIdle, TimeoutConfig timeoutConfig) {
         this.redisURI = redisURI;
         this.stringCodec = stringCodec;
         this.redisClient = RedisClient.create(redisURI);

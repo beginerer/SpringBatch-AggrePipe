@@ -1,21 +1,26 @@
 package com.core;
 
-import com.core.operation.LuaOperation;
+import com.core.config.TimeoutConfig;
+import com.core.exception.LuaScriptInterruptedException;
+import com.core.exception.LuaScriptNonRetryableException;
+import com.core.exception.LuaScriptTimeoutException;
+import com.core.exception.LuaScriptTypeMismatchException;
+import com.core.operation.*;
 import com.excpetion.ConnectionClosedException;
-import com.excpetion.KeyNotFoundException;
-import io.lettuce.core.TransactionResult;
+import io.lettuce.core.ScriptOutputType;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.RedisAsyncCommands;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
+import java.math.BigDecimal;
 import java.util.concurrent.*;
-import java.util.function.BiFunction;
 
 
 /**
- * This class is not thread-safe.
+ * <p>This class is not thread-safe.</p>
+ * <p>auto flush is true.</p>
  */
 public class RedisConnection {
 
@@ -27,8 +32,6 @@ public class RedisConnection {
 
     public final long timeAmount;
 
-    private boolean inTx;
-
     private final Logger logger = LoggerFactory.getLogger(RedisConnection.class);
 
 
@@ -36,141 +39,244 @@ public class RedisConnection {
 
 
 
-    public RedisConnection(StatefulRedisConnection<String, String> connection, RedisAsyncCommands<String, String> async,TimeoutConfig timeoutConfig) {
+    public RedisConnection(StatefulRedisConnection<String, String> connection, RedisAsyncCommands<String, String> async, TimeoutConfig timeoutConfig) {
         this.connection = connection;
         this.async = async;
-        this.inTx = false;
         this.timeUnit = timeoutConfig.getTimeUnit();
         this.timeAmount = timeoutConfig.getAmount();
     }
 
 
 
-    public CompletableFuture<Boolean> casWithWatch(String key, Long value, BiFunction<Long,Long,Long> f, int maxTries) {
+
+    public Long evalAsLong(LuaOperation<String, String> op) {
 
         final var conn = connection;
 
         if(conn == null || !conn.isOpen())
-            return CompletableFuture.failedFuture(new ConnectionClosedException("[ERROR] connection is closed"));
+            throw new ConnectionClosedException("[ERROR] connection is closed");
 
-        if(key == null)
-            return CompletableFuture.failedFuture(new IllegalArgumentException("[ERROR] key is null"));
+        if(op == null)
+            throw new IllegalArgumentException("[ERROR] LuaOperation is null");
 
+        final boolean safetyMode = op.isSafetyMode();
 
-        for (int attempts = 0; attempts < maxTries; attempts++) {
-            boolean watched = false;
-            boolean enteredMulti = false;
-            boolean execSent = false;
+        if(safetyMode) {
+            if(op.getAggregateOutputType() != AggregateOutputType.LONG || op.getScriptOutputType() != ScriptOutputType.INTEGER)
+                throw new IllegalArgumentException("[ERROR] unsupported output type. AggregateOutputType=%s, ScriptOutputType=%s, required=%s %s".
+                        formatted(op.getAggregateOutputType(), op.getScriptOutputType(), AggregateOutputType.LONG, ScriptOutputType.INTEGER));
+        }
 
+        try {
+            var response = async.eval(op.getLuaScript(), op.getScriptOutputType(), op.getKeys(), op.getArgs()).get(timeAmount, timeUnit);
 
-            try {
-                if (inTx)
-                    return CompletableFuture.failedFuture(new IllegalStateException("[ERROR] connection is already in transaction"));
+            if(response == null)
+                return null;
 
+            if(safetyMode && !(response instanceof Long))
+                throw new LuaScriptTypeMismatchException("[ERROR] type mismatch. Expected Long but got %s".
+                        formatted(op.getName(), response));
 
-                inTx = true;
-                var watchF = async.watch(key);
-                var getF = async.get(key);
-                conn.flushCommands();
+            return (Long) response;
 
-                String watchReply = watchF.get(timeAmount, timeUnit);
-
-                if(!"OK".equalsIgnoreCase(watchReply))
-                    continue;
-                watched = true;
-
-                String cur = getF.get(timeAmount, timeUnit);
-
-                if (cur == null)
-                    return CompletableFuture.failedFuture(new KeyNotFoundException("[ERROR] key is not found. key=%s".formatted(key)));
-
-                long newValue = f.apply(value,Long.parseLong(cur));
-
-
-                async.multi();
-                enteredMulti = true;
-                var setF = async.set(key, String.valueOf(newValue));
-                var execF = async.exec();
-                conn.flushCommands();
-                execSent = true;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new LuaScriptInterruptedException("[ERROR] SCRIPT EVAL interrupted (name=%s)".formatted(op.getName()), e);
+        } catch (ExecutionException e) {
+            throw new LuaScriptNonRetryableException("[ERROR] SCRIPT EVAL failed (name=%s)".formatted(op.getName()), e);
+        } catch (TimeoutException e) {
+            throw new LuaScriptTimeoutException("[ERROR] SCRIPT EVAL timed out (name =%s, timeout=%d %s)".
+                    formatted(op.getName(), timeAmount, timeUnit), e);
+        }catch (ClassCastException e) {
+            throw new LuaScriptTypeMismatchException("[ERROR] SCRIPT EVAL type mismatch",e);
+        }
+    }
 
 
-                TransactionResult tr = null;
+    public Double evalAsDouble(LuaOperation<String, String> op) {
 
-                try {
-                    tr = execF.get(timeAmount, timeUnit);
-                }catch (ExecutionException e) {
-                    return CompletableFuture.failedFuture(e);
-                }
+        final var conn = connection;
 
-                if(tr.wasDiscarded())
-                    continue;
+        if(conn == null || !conn.isOpen())
+            throw new ConnectionClosedException("[ERROR] connection is closed");
 
+        if(op == null)
+            throw new IllegalArgumentException("[ERROR] LuaOperation is null");
 
-                String reply = setF.get(timeAmount, timeUnit);
+        final boolean safetyMode = op.isSafetyMode();
 
-                if ("OK".equalsIgnoreCase(reply))
-                    return CompletableFuture.completedFuture(true);
-
-
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return CompletableFuture.failedFuture(e);
-            } catch (ExecutionException | CancellationException e) {
-                return CompletableFuture.failedFuture(e);
-            } catch (TimeoutException e){
-                try {Thread.sleep(500);}
-                catch (InterruptedException ie) { Thread.currentThread().interrupt();}
-            } finally {
-                inTx = false;
-                try {
-                    if(!execSent) {
-                        if(enteredMulti)
-                            async.discard();
-                        else if(watched)
-                            async.unwatch();
-                        conn.flushCommands();
-                    }
-                } catch (Exception ignore) {}
+        if(safetyMode) {
+            if(op.getAggregateOutputType()!=AggregateOutputType.DOUBLE || op.getScriptOutputType()!=ScriptOutputType.VALUE) {
+                throw new IllegalStateException("[ERROR] unsupported output type. AggregateOutputType=%s, ScriptOutputType=%s, required= %s %s".
+                        formatted(op.getAggregateOutputType(), op.getScriptOutputType(), AggregateOutputType.DOUBLE, ScriptOutputType.VALUE));
             }
         }
-        return CompletableFuture.completedFuture(false);
+        try {
+
+            var response = async.eval(op.getLuaScript(), op.getScriptOutputType(), op.getKeys(), op.getArgs()).get(timeAmount,timeUnit);
+
+            if(response == null)
+                return null;
+
+            try {
+                return Double.parseDouble(String.valueOf(response));
+
+            }catch (NumberFormatException e) {
+                throw new LuaScriptTypeMismatchException("[ERROR] Type mismatch: expected a value parsable as Double but got "
+                        .formatted(response),e);
+            }
+        } catch (ExecutionException e) {
+            throw new LuaScriptNonRetryableException("[ERROR] SCRIPT EVAL failed (name=%s)".
+                    formatted(op.getName()), e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new LuaScriptInterruptedException("[ERROR] SCRIPT EVAL interrupted (name=%s)".
+                    formatted(op.getName()), e);
+        } catch (TimeoutException e) {
+            throw new LuaScriptTimeoutException("[ERROR] SCRIPT EVAL timed out (name=%s, timed=%d %s)".
+                    formatted(op.getName(), timeAmount, timeUnit), e);
+        }
     }
 
-    // <T> RedisFuture<T> eval(String script, ScriptOutputType type, K[] keys, V... values);
-    public void lua(LuaOperation operation) {
-        async.eval(operation.getLuaScript(),)
+
+    public BigDecimal evalAsBigDecimal(LuaOperation<String, String> op) {
+
+        final var conn = connection;
+
+        if(conn == null || !conn.isOpen())
+            throw new ConnectionClosedException("[ERROR] connection is closed");
+
+        if(op == null)
+            throw new IllegalArgumentException("[ERROR] LuaOperation is null");
+
+        final boolean safetyMode = op.isSafetyMode();
+
+        if(safetyMode) {
+            if(op.getAggregateOutputType()!=AggregateOutputType.BIG_DECIMAL || op.getScriptOutputType()!=ScriptOutputType.VALUE)
+                throw new IllegalStateException("[ERROR] unsupported output type. AggregateOutputType=%s, ScriptOutputType=%s, required= %s %s".
+                        formatted(op.getAggregateOutputType(), op.getScriptOutputType(), AggregateOutputType.BIG_DECIMAL, ScriptOutputType.VALUE));
+        }
+
+        try {
+            var response = async.eval(op.getLuaScript(), op.getScriptOutputType(), op.getKeys(), op.getArgs()).get(timeAmount,timeUnit);
+            conn.flushCommands();
+
+            if(response ==null)
+                return null;
+
+            try {
+                return new BigDecimal(String.valueOf(response));
+            }catch (NumberFormatException e) {
+                throw new LuaScriptTypeMismatchException("[ERROR] Type mismatch: expected a value parsable as BigDecimal but got ".
+                        formatted(response), e);
+            }
+
+
+        } catch (ExecutionException e) {
+            throw new LuaScriptNonRetryableException("[ERROR] SCRIPT EVAL failed (name=%s)".
+                    formatted(op.getName()), e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new LuaScriptInterruptedException("[ERROR] SCRIPT EVAL interrupted (name=%s)".
+                    formatted(op.getName()), e);
+        } catch (TimeoutException e) {
+            throw new LuaScriptTimeoutException("[ERROR] SCRIPT EVAL timed out (name=%s, timed=%d %s)".
+                    formatted(op.getName(), timeAmount, timeUnit), e);
+        }
     }
+
+
+    /**
+     * Load the specified Lua script into the script cache.
+     * */
+    public DigestDigestLuaScript<String, String> loadScript(LuaScript<String, String> spec) {
+
+        final var conn = connection;
+
+        if(conn ==null || !conn.isOpen())
+            throw new ConnectionClosedException("[ERROR] connection is closed");
+
+        if(spec == null)
+            throw new IllegalArgumentException("[ERROR] luaOperation must not be null");
+
+        try {
+            String sha = async.scriptLoad(spec.getLuaScript()).get(timeAmount, timeUnit);
+
+            return new DigestDigestLuaScript<>(spec, sha);
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new LuaScriptInterruptedException("[ERROR] SCRIPT load interrupted (name=%s)".
+                    formatted(spec.getName()), e);
+        } catch (ExecutionException e) {
+            throw new LuaScriptNonRetryableException("[ERROR] SCRIPT load failed (name=%s)".
+                    formatted(spec.getName()));
+        } catch (TimeoutException e) {
+            throw new LuaScriptTimeoutException("[ERROR] SCRIPT load timed out (name=%s, timed=%d %s)".
+                    formatted(spec.getName(),timeAmount,timeUnit), e);
+        }
+    }
+
+
+    public Long evalshaAsLong(DigestLuaOperation<String, String> op) {
+        final var conn = connection;
+
+        if(conn == null || !conn.isOpen())
+            throw new ConnectionClosedException("[ERROR] connection is closed");
+
+
+    }
+
+
+    /**
+     * Create a SHA1 digest from a Lua script
+     * */
+    public DigestDigestLuaScript<String, String> digest(LuaScript<String,String> spec) {
+
+        if(spec == null)
+            throw new IllegalArgumentException("[ERROR] spec must not be null");
+
+        String sha = async.digest(spec.getLuaScript());
+
+        return new DigestDigestLuaScript<>(spec,sha);
+    }
+
 
 
     public void releaseConnection() {
+        final var conn = connection;
         boolean mustClose = false;
+
+        if(conn == null || !conn.isOpen())
+            return;
+
         try {
-            if(inTx) {
-                var discard = async.discard();
-                connection.flushCommands();
-                String response = discard.toCompletableFuture().get(timeAmount, timeUnit);
-                if(!"OK".equalsIgnoreCase(response))
-                    mustClose = true;
+            if(conn.isMulti()) {
+                String reply = async.discard().get(timeAmount, timeUnit);
+                if(!"OK".equalsIgnoreCase(reply))
+                    mustClose =true;
             }
-        }catch (InterruptedException e) {
+        } catch (ExecutionException | TimeoutException e) {
+            mustClose = true;
+        } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             mustClose = true;
-        } catch (ExecutionException e) {
-            mustClose = true;
-        }catch (TimeoutException e) {
-            mustClose = true;
-        }finally {
-            if(connection.isOpen() && mustClose) {
-                connection.close();
+        } finally {
+            if(mustClose) {
+                try {
+                    conn.close();
+                }catch (Exception ignore) {
+                    logger.warn("[ERROR] connection close failed", ignore);
+                };
             }
-            inTx = false;
         }
     }
+
 
     public StatefulRedisConnection<String, String> getConnection() {
         if(!connection.isOpen())
             throw new ConnectionClosedException("[ERROR] Connection is closed");
         return connection;
     }
+
 }

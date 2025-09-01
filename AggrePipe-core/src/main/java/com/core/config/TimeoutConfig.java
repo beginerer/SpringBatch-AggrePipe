@@ -1,4 +1,4 @@
-package com.core;
+package com.core.config;
 
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;

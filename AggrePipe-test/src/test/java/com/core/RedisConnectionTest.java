@@ -1,5 +1,6 @@
 package com.core;
 
+import com.core.config.RedisClientConfig;
 import com.redis.testcontainers.RedisContainer;
 import io.lettuce.core.*;
 import io.lettuce.core.api.StatefulRedisConnection;
@@ -10,14 +11,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.shaded.org.checkerframework.checker.units.qual.A;
 
-import java.util.TreeMap;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Consumer;
 
 
 @Testcontainers
