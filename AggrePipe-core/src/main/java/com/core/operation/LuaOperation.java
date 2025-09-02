@@ -5,6 +5,8 @@ import io.lettuce.core.ScriptOutputType;
 public interface LuaOperation <T, V> {
 
 
+    V[] inputData(V... data);
+
     String getName();
 
     String getLuaScript();
@@ -15,7 +17,8 @@ public interface LuaOperation <T, V> {
 
     T[] getKeys();
 
-    V[] getArgs();
+    int getTtl();
 
     boolean isSafetyMode();
+
 }

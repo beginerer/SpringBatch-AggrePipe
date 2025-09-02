@@ -1,6 +1,8 @@
 package com.core;
 
 import com.core.config.RedisClientConfig;
+import com.core.config.TimeoutConfig;
+import com.core.operation.LuaScript;
 import com.redis.testcontainers.RedisContainer;
 import io.lettuce.core.*;
 import io.lettuce.core.api.StatefulRedisConnection;
@@ -8,9 +10,11 @@ import io.lettuce.core.api.async.RedisAsyncCommands;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.shaded.org.checkerframework.checker.units.qual.A;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -20,9 +24,9 @@ import java.util.concurrent.TimeoutException;
 @Testcontainers
 public class RedisConnectionTest {
 
-    private RedisClient redisClient;
+    private RedisAsyncCommands<String, String> async;
+    private RedisConnection redisConnection;
 
-    private StatefulRedisConnection<String, String> connection;
 
     @Container
     private static final RedisContainer container = new RedisContainer(
@@ -30,10 +34,9 @@ public class RedisConnectionTest {
 
 
 
-
     @Test
     public void connect() {
-        StatefulRedisConnection<String, String> connection = redisClient.connect();
+        StatefulRedisConnection<String, String> connection = redisConnection.getConnection();
 
         String ping = connection.sync().ping();
 
@@ -42,117 +45,66 @@ public class RedisConnectionTest {
 
 
     @Test
-    public void test() throws ExecutionException, InterruptedException, TimeoutException {
-        RedisAsyncCommands<String, String> async = connection.async();
-
-        String key = "redis:key";
-        String value = "redis:value";
-        String newValue = "redis:newValue";
-
-        async.set(key,value);
-
-        async.watch(key);
-        async.multi();
-        RedisFuture<String> setF = async.set(key, newValue);
-
-        TransactionResult tr = async.exec().get(500, TimeUnit.MILLISECONDS);
-
-        String response = setF.get(500, TimeUnit.MILLISECONDS);
-
-        String v = async.get(key).get(500, TimeUnit.MILLISECONDS);
+    @DisplayName("[max] eval test")
+    public void test() throws ExecutionException, InterruptedException {
+        String setKey = "setKey";
+        String numKey = "numKey";
+        String requestId = "requestId:1";
+        Long value = 10L;
 
 
-        Assertions.assertThat(tr.wasDiscarded()).isFalse();
-        Assertions.assertThat(response).isEqualTo("OK");
-        Assertions.assertThat(v).isEqualTo(newValue);
-    }
+        //given
+        LuaScript luaScript = LuaScript.max(setKey, numKey);
+
+        //when
+        Long result = redisConnection.evalAsLong(luaScript, requestId, String.valueOf(value));
+
+        //then
+        String current = async.get(numKey).get();
+        Long setSize = async.scard(setKey).get();
+        Boolean requestSuccess = async.sismember(setKey, requestId).get();
 
 
-    @Test
-    public void test2() throws ExecutionException, InterruptedException, TimeoutException {
-        RedisAsyncCommands<String, String> async = connection.async();
 
-        String key = "redis:key";
-        String value = "redis:value";
-        String newValue = "redis:newValue";
-        String newValue2 = "redis:newValue2";
-
-        async.set(key,value);
-
-        async.watch(key);
-
-        async.set(key, newValue);
-
-        async.multi();
-        RedisFuture<String> setF = async.set(key, newValue2);
-        TransactionResult tr = async.exec().get(500, TimeUnit.MILLISECONDS);
-
-        String v = async.get(key).get(500, TimeUnit.MILLISECONDS);
-        String s = setF.get(500, TimeUnit.MILLISECONDS);
-
-
-        Assertions.assertThat(tr.wasDiscarded()).isTrue();
-        Assertions.assertThat(v).isEqualTo(newValue);
-        Assertions.assertThat(s).isNull();
-    }
-
-
-    @Test
-    public void test3() throws ExecutionException, InterruptedException, TimeoutException {
-        RedisAsyncCommands<String, String> async = connection.async();
-        RedisFuture<String> multiF = async.multi();
-        RedisFuture<String> multiF2 = async.multi();
-
-        String s = multiF.get(500, TimeUnit.MILLISECONDS);
-        Assertions.assertThatThrownBy(() -> multiF2.get(500, TimeUnit.MILLISECONDS))
-                .isInstanceOf(ExecutionException.class);
-
+        Assertions.assertThat(result).isEqualTo(10L);
+        Assertions.assertThat(current).isEqualTo("10");
+        Assertions.assertThat(requestSuccess).isTrue();
+        Assertions.assertThat(setSize).isEqualTo(1L);
     }
 
     @Test
-    public void test4() throws ExecutionException, InterruptedException, TimeoutException {
-        connection.setAutoFlushCommands(false);
-        RedisAsyncCommands<String, String> async = connection.async();
+    @DisplayName("[max] Idempotency test")
+    public void test2() throws ExecutionException, InterruptedException {
+        String setKey = "setKey";
+        String numKey = "numKey";
+        String requestId = "requestId:1";
+        Long value = 10L;
+        Long value2 = 11L;
 
-        String key = "redis:key";
+        //given
+        LuaScript luaScript = LuaScript.max(setKey, numKey);
 
-        async.multi();
-        RedisFuture<String> setF = async.set(key, "world");
-        async.multi();
-        var execF = async.exec();
-        connection.flushCommands();
+        //when
+        Long result = redisConnection.evalAsLong(luaScript, requestId, String.valueOf(value));
+        Long result2 = redisConnection.evalAsLong(luaScript, requestId, String.valueOf(value2));
 
-        String s = setF.get(500, TimeUnit.MILLISECONDS);
-        Assertions.assertThat(s).isEqualTo("OK");
-        Assertions.assertThat(execF.get(500,TimeUnit.MILLISECONDS).wasDiscarded()).isTrue();
-        connection.setAutoFlushCommands(true);
+        //then
+        String current = async.get(numKey).get();
+        Long setSize = async.scard(setKey).get();
+        Boolean requestSuccess = async.sismember(setKey, requestId).get();
+
+
+        Assertions.assertThat(result).isEqualTo(result2);
+
+        Assertions.assertThat(result).isEqualTo(10L);
+        Assertions.assertThat(current).isEqualTo("10");
+        Assertions.assertThat(requestSuccess).isTrue();
+        Assertions.assertThat(setSize).isEqualTo(1L);
     }
 
-    @Test
-    public void test5() throws ExecutionException, InterruptedException, TimeoutException {
-        connection.setAutoFlushCommands(false);
-        RedisAsyncCommands<String, String> async = connection.async();
-
-        String key = "redis:key";
-
-        async.set(key,"hello"); // 초기값
-        async.watch(key);
-
-        async.set(key,"hello2");
-
-        var multiF = async.multi();
-        var setF = async.set(key, "hello3");
-        var execF = async.exec();
 
 
-        connection.flushCommands();
 
-        TransactionResult tr= execF.get(500, TimeUnit.MILLISECONDS);
-        Assertions.assertThat(tr.wasDiscarded()).isTrue();
-
-        Assertions.assertThat(setF.get(500,TimeUnit.MILLISECONDS)).isEqualTo("OK");
-
-    }
 
 
 
@@ -166,16 +118,21 @@ public class RedisConnectionTest {
         RedisURI uri = RedisURI.create(redisURI);
 
         RedisClientConfig config = new RedisClientConfig(uri);
-        this.redisClient = config.getRedisClient();
-        this.connection = redisClient.connect();
+        RedisClient redisClient = config.getRedisClient();
+
+        StatefulRedisConnection<String, String> connection = redisClient.connect();
+        this.async = connection.async();
+        TimeoutConfig timeoutConfig = TimeoutConfig.create();
+
+        this.redisConnection = new RedisConnection(connection, async, timeoutConfig);
     }
+
 
     @AfterEach
     void after() {
 
-        if (redisClient != null) {
-            redisClient.shutdown();
-        }
+        if(redisConnection!=null)
+            redisConnection.releaseConnection();
     }
 
 }

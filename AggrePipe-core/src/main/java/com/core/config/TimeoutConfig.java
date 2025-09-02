@@ -3,6 +3,7 @@ package com.core.config;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+
 public class TimeoutConfig {
 
     private final long amount;
@@ -23,7 +24,7 @@ public class TimeoutConfig {
 
 
     public static TimeoutConfig create() {
-        return new TimeoutConfig(DEFAULT_TIME_VALUE,DEFAULT_TIME_UNIT);
+        return new TimeoutConfig(DEFAULT_TIME_VALUE, DEFAULT_TIME_UNIT);
     }
 
 

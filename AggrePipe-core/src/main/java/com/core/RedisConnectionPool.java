@@ -2,7 +2,7 @@ package com.core;
 
 import com.core.config.RedisClientConfig;
 import com.core.config.TimeoutConfig;
-import com.excpetion.ConnectionPoolClosedException;
+import com.core.exception.ConnectionPoolClosedException;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.support.AsyncConnectionPoolSupport;

@@ -6,27 +6,26 @@ import com.core.exception.LuaScriptNonRetryableException;
 import com.core.exception.LuaScriptTimeoutException;
 import com.core.exception.LuaScriptTypeMismatchException;
 import com.core.operation.*;
-import com.excpetion.ConnectionClosedException;
+import com.core.exception.ConnectionClosedException;
 import io.lettuce.core.ScriptOutputType;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.RedisAsyncCommands;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-
-import java.math.BigDecimal;
 import java.util.concurrent.*;
+
 
 
 /**
  * <p>This class is not thread-safe.</p>
  * <p>auto flush is true.</p>
  */
-public class RedisConnection {
+public class RedisConnection  {
 
-    private final StatefulRedisConnection<String,String> connection;
 
-    private final RedisAsyncCommands<String,String> async;
+    private final StatefulRedisConnection<String, String> connection;
+
+    private final RedisAsyncCommands<String, String> async;
 
     public final TimeUnit timeUnit;
 
@@ -49,7 +48,8 @@ public class RedisConnection {
 
 
 
-    public Long evalAsLong(LuaOperation<String, String> op) {
+
+    public Long evalAsLong(LuaOperation<String, String> op, String... data) {
 
         final var conn = connection;
 
@@ -68,7 +68,8 @@ public class RedisConnection {
         }
 
         try {
-            var response = async.eval(op.getLuaScript(), op.getScriptOutputType(), op.getKeys(), op.getArgs()).get(timeAmount, timeUnit);
+            String[] argv = op.inputData(data);
+            var response = async.eval(op.getLuaScript(), op.getScriptOutputType(), op.getKeys(), argv).get(timeAmount, timeUnit);
 
             if(response == null)
                 return null;
@@ -93,7 +94,8 @@ public class RedisConnection {
     }
 
 
-    public Double evalAsDouble(LuaOperation<String, String> op) {
+
+    public Double evalAsDouble(LuaOperation<String, String> op, String... data) {
 
         final var conn = connection;
 
@@ -112,8 +114,10 @@ public class RedisConnection {
             }
         }
         try {
+            ;
+            String[] argv = op.inputData(data);
 
-            var response = async.eval(op.getLuaScript(), op.getScriptOutputType(), op.getKeys(), op.getArgs()).get(timeAmount,timeUnit);
+            var response = async.eval(op.getLuaScript(), op.getScriptOutputType(), op.getKeys(), argv).get(timeAmount,timeUnit);
 
             if(response == null)
                 return null;
@@ -122,7 +126,7 @@ public class RedisConnection {
                 return Double.parseDouble(String.valueOf(response));
 
             }catch (NumberFormatException e) {
-                throw new LuaScriptTypeMismatchException("[ERROR] Type mismatch: expected a value parsable as Double but got "
+                throw new LuaScriptTypeMismatchException("[ERROR] Type mismatch: expected a value parsable as Double but got %s"
                         .formatted(response),e);
             }
         } catch (ExecutionException e) {
@@ -139,7 +143,8 @@ public class RedisConnection {
     }
 
 
-    public BigDecimal evalAsBigDecimal(LuaOperation<String, String> op) {
+
+    public Long evalshaAsLong(DigestLuaOperation<String, String> op, String... data) {
 
         final var conn = connection;
 
@@ -149,47 +154,49 @@ public class RedisConnection {
         if(op == null)
             throw new IllegalArgumentException("[ERROR] LuaOperation is null");
 
-        final boolean safetyMode = op.isSafetyMode();
+        boolean safetyMode = op.isSafetyMode();
 
-        if(safetyMode) {
-            if(op.getAggregateOutputType()!=AggregateOutputType.BIG_DECIMAL || op.getScriptOutputType()!=ScriptOutputType.VALUE)
+        if (safetyMode) {
+            if(op.getAggregateOutputType() != AggregateOutputType.LONG || op.getScriptOutputType() != ScriptOutputType.INTEGER)
                 throw new IllegalStateException("[ERROR] unsupported output type. AggregateOutputType=%s, ScriptOutputType=%s, required= %s %s".
-                        formatted(op.getAggregateOutputType(), op.getScriptOutputType(), AggregateOutputType.BIG_DECIMAL, ScriptOutputType.VALUE));
+                        formatted(op.getAggregateOutputType(), op.getScriptOutputType(), AggregateOutputType.LONG, ScriptOutputType.INTEGER));
         }
 
         try {
-            var response = async.eval(op.getLuaScript(), op.getScriptOutputType(), op.getKeys(), op.getArgs()).get(timeAmount,timeUnit);
-            conn.flushCommands();
+            String[] argv = op.inputData(data);
+            var response = async.evalsha(op.getDigestScript(), op.getScriptOutputType(), op.getKeys(), argv).get(timeAmount,timeUnit);
 
-            if(response ==null)
+            if(response == null)
                 return null;
 
-            try {
-                return new BigDecimal(String.valueOf(response));
-            }catch (NumberFormatException e) {
-                throw new LuaScriptTypeMismatchException("[ERROR] Type mismatch: expected a value parsable as BigDecimal but got ".
-                        formatted(response), e);
-            }
+            if(safetyMode && !(response instanceof Long))
+                throw new LuaScriptTypeMismatchException("[ERROR] type mismatch: expected Long but got %s".
+                        formatted(response));
 
+            return (Long) response;
 
         } catch (ExecutionException e) {
-            throw new LuaScriptNonRetryableException("[ERROR] SCRIPT EVAL failed (name=%s)".
+            throw new LuaScriptNonRetryableException("[ERROR] SCRIPT EVALSHA failed (name=%s)".
                     formatted(op.getName()), e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new LuaScriptInterruptedException("[ERROR] SCRIPT EVAL interrupted (name=%s)".
+            throw new LuaScriptInterruptedException("[ERROR] SCRIPT EVALSHA interrupted (name=%s)".
                     formatted(op.getName()), e);
         } catch (TimeoutException e) {
-            throw new LuaScriptTimeoutException("[ERROR] SCRIPT EVAL timed out (name=%s, timed=%d %s)".
+            throw new LuaScriptTimeoutException("[ERROR] SCRIPT EVALSHA timed out (name=%s, timed=%d %s)".
                     formatted(op.getName(), timeAmount, timeUnit), e);
+        }catch (ClassCastException e) {
+            throw new LuaScriptTypeMismatchException("[ERROR] SCRIPT EVALSHA type mismatch", e);
         }
     }
+
+
 
 
     /**
      * Load the specified Lua script into the script cache.
      * */
-    public DigestDigestLuaScript<String, String> loadScript(LuaScript<String, String> spec) {
+    public DigestDigestLuaScript loadScript(LuaScript spec) {
 
         final var conn = connection;
 
@@ -202,7 +209,7 @@ public class RedisConnection {
         try {
             String sha = async.scriptLoad(spec.getLuaScript()).get(timeAmount, timeUnit);
 
-            return new DigestDigestLuaScript<>(spec, sha);
+            return new DigestDigestLuaScript(spec, sha);
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -213,32 +220,23 @@ public class RedisConnection {
                     formatted(spec.getName()));
         } catch (TimeoutException e) {
             throw new LuaScriptTimeoutException("[ERROR] SCRIPT load timed out (name=%s, timed=%d %s)".
-                    formatted(spec.getName(),timeAmount,timeUnit), e);
+                    formatted(spec.getName(), timeAmount, timeUnit), e);
         }
     }
 
-
-    public Long evalshaAsLong(DigestLuaOperation<String, String> op) {
-        final var conn = connection;
-
-        if(conn == null || !conn.isOpen())
-            throw new ConnectionClosedException("[ERROR] connection is closed");
-
-
-    }
 
 
     /**
      * Create a SHA1 digest from a Lua script
      * */
-    public DigestDigestLuaScript<String, String> digest(LuaScript<String,String> spec) {
+    public DigestDigestLuaScript digest(LuaScript spec) {
 
         if(spec == null)
             throw new IllegalArgumentException("[ERROR] spec must not be null");
 
         String sha = async.digest(spec.getLuaScript());
 
-        return new DigestDigestLuaScript<>(spec,sha);
+        return new DigestDigestLuaScript(spec,sha);
     }
 
 
@@ -271,6 +269,7 @@ public class RedisConnection {
             }
         }
     }
+
 
 
     public StatefulRedisConnection<String, String> getConnection() {

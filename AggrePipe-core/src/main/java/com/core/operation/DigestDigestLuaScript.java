@@ -3,9 +3,10 @@ package com.core.operation;
 import io.lettuce.core.ScriptOutputType;
 
 import java.util.Arrays;
+import java.util.Objects;
 
 
-public class DigestDigestLuaScript<T,V> implements DigestLuaOperation<T,V> {
+public class DigestDigestLuaScript implements DigestLuaOperation<String, String> {
 
 
     private final String name;
@@ -16,15 +17,15 @@ public class DigestDigestLuaScript<T,V> implements DigestLuaOperation<T,V> {
 
     private final AggregateOutputType aggregateOutputType;
 
-    private final T[] keys;
+    private final String[] keys;
 
-    private final V[] args;
+    private final int ttl;
 
     private final boolean safetyMode;
 
 
 
-    public DigestDigestLuaScript(LuaScript<T,V> spec, String digestScript) {
+    public DigestDigestLuaScript(LuaScript spec, String digestScript) {
         if(digestScript == null || digestScript.isEmpty())
             throw new IllegalArgumentException("[ERROR] digestScript is null or empty");
         this.name = spec.getName();
@@ -32,8 +33,22 @@ public class DigestDigestLuaScript<T,V> implements DigestLuaOperation<T,V> {
         this.script = spec.getLuaScript();
         this.aggregateOutputType = spec.getAggregateOutputType();
         this.keys = spec.getKeys();
-        this.args = spec.getArgs();
+        this.ttl = spec.getTtl();
         this.safetyMode = spec.isSafetyMode();
+    }
+
+
+
+    @Override
+    public String[] inputData(String... data) {
+        if (data == null || data.length != 2) {
+            throw new IllegalArgumentException(
+                    "[ERROR] ARGV expects exactly 2 elements: [requestId, value], but got " + Arrays.toString(data)
+            );
+        }
+        String requestId = Objects.requireNonNull(data[0], "requestId must not be null");
+        String value = Objects.requireNonNull(data[1], "value must not be null");
+        return new String[]{requestId, value, String.valueOf(ttl)};
     }
 
 
@@ -64,19 +79,21 @@ public class DigestDigestLuaScript<T,V> implements DigestLuaOperation<T,V> {
     }
 
     @Override
-    public T[] getKeys() {
+    public String[] getKeys() {
         return keys;
     }
 
+
     @Override
-    public V[] getArgs() {
-        return args;
+    public int getTtl() {
+        return ttl;
     }
 
     @Override
     public boolean isSafetyMode() {
         return safetyMode;
     }
+
 
     @Override
     public String toString() {
@@ -86,7 +103,6 @@ public class DigestDigestLuaScript<T,V> implements DigestLuaOperation<T,V> {
                 ", AggregateOutputTYpe=" + aggregateOutputType +
                 ", scriptOutputType=" + aggregateOutputType.getScriptOutputType() +
                 ", keys=" + Arrays.toString(keys) +
-                ", args=" + Arrays.toString(args) +
                 '}';
     }
 }
