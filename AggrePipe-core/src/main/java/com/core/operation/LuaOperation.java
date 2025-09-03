@@ -7,6 +7,8 @@ public interface LuaOperation <T, V> {
 
     V[] inputData(V... data);
 
+    int[] opIndex();
+
     String getName();
 
     String getLuaScript();
@@ -20,5 +22,4 @@ public interface LuaOperation <T, V> {
     int getTtl();
 
     boolean isSafetyMode();
-
 }

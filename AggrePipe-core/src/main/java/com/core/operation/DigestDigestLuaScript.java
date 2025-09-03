@@ -11,6 +11,8 @@ public class DigestDigestLuaScript implements DigestLuaOperation<String, String>
 
     private final String name;
 
+    private final int[] opIndex;
+
     private final String digestScript;
 
     private final String script;
@@ -29,6 +31,7 @@ public class DigestDigestLuaScript implements DigestLuaOperation<String, String>
         if(digestScript == null || digestScript.isEmpty())
             throw new IllegalArgumentException("[ERROR] digestScript is null or empty");
         this.name = spec.getName();
+        this.opIndex = spec.opIndex();
         this.digestScript = digestScript;
         this.script = spec.getLuaScript();
         this.aggregateOutputType = spec.getAggregateOutputType();
@@ -51,6 +54,11 @@ public class DigestDigestLuaScript implements DigestLuaOperation<String, String>
         return new String[]{requestId, value, String.valueOf(ttl)};
     }
 
+
+    @Override
+    public int[] opIndex() {
+        return opIndex;
+    }
 
 
     @Override
