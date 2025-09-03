@@ -78,7 +78,7 @@ public class LuaScriptWithLongTest {
     }
 
     @Test
-    @DisplayName("[SUM,COUNT,MAX,MIN] :sequence Test")
+    @DisplayName("[SUM,COUNT,MAX,MIN] : sequence Test")
     public void test2() throws ExecutionException, InterruptedException {
 
         String idemKey = "idemKey";
@@ -148,6 +148,64 @@ public class LuaScriptWithLongTest {
         Assertions.assertThat(min).isEqualTo(String.valueOf(value));
     }
 
+    @Test
+    @DisplayName("[SUM,COUNT,MAX,MIN] : Idempotency Test")
+    public void test3() throws ExecutionException, InterruptedException {
+        String idemKey = "idemKey";
+        String hKey = "hKey";
+
+        String requestId = "requestId";
+        Long value = 10L;
+
+        // given
+        LuaScript luaScript = LuaScriptLongTypeFactory.LongAsAll(idemKey, hKey);
+
+        // when
+        RedisLongResultSet resultSet1 = redisConnection.evalAsLong(luaScript, requestId, String.valueOf(value));
+        RedisLongResultSet resultSet2 = redisConnection.evalAsLong(luaScript, requestId, String.valueOf(value));
+
+
+        // then
+        Boolean reqSuccess1 = async.sismember(idemKey, requestId).get();
+        Boolean reqSuccess2 = async.sismember(idemKey, requestId).get();
+        Long setSize = async.scard(idemKey).get();
+
+        String sum = async.hget(hKey, "0").get();
+        String count = async.hget(hKey, "1").get();
+        String max = async.hget(hKey, "2").get();
+        String min = async.hget(hKey, "3").get();
+
+        Assertions.assertThat(resultSet1.has(Operation.SUM)).isTrue();
+        Assertions.assertThat(resultSet1.has(Operation.COUNT)).isTrue();
+        Assertions.assertThat(resultSet1.has(Operation.MAX)).isTrue();
+        Assertions.assertThat(resultSet1.has(Operation.MIN)).isTrue();
+
+        Assertions.assertThat(resultSet2.has(Operation.SUM)).isTrue();
+        Assertions.assertThat(resultSet2.has(Operation.COUNT)).isTrue();
+        Assertions.assertThat(resultSet2.has(Operation.MAX)).isTrue();
+        Assertions.assertThat(resultSet2.has(Operation.MIN)).isTrue();
+
+        Assertions.assertThat(resultSet1.getSum()).isEqualTo(resultSet2.getSum());
+        Assertions.assertThat(resultSet1.getCount()).isEqualTo(resultSet2.getCount());
+        Assertions.assertThat(resultSet1.getMax()).isEqualTo(resultSet2.getMax());
+        Assertions.assertThat(resultSet1.getMin()).isEqualTo(resultSet2.getMin());
+
+
+        Assertions.assertThat(resultSet2.getSum()).isEqualTo(value);
+        Assertions.assertThat(resultSet2.getCount()).isEqualTo(1L);
+        Assertions.assertThat(resultSet2.getMax()).isEqualTo(value);
+        Assertions.assertThat(resultSet2.getMin()).isEqualTo(value);
+
+        Assertions.assertThat(reqSuccess1).isTrue();
+        Assertions.assertThat(reqSuccess2).isTrue();
+        Assertions.assertThat(setSize).isEqualTo(1L);
+
+        Assertions.assertThat(sum).isEqualTo(String.valueOf(value));
+        Assertions.assertThat(count).isEqualTo("1");
+        Assertions.assertThat(max).isEqualTo(String.valueOf(value));
+        Assertions.assertThat(min).isEqualTo(String.valueOf(value));
+    }
+
 
     @BeforeEach
     public void before() {
@@ -166,7 +224,8 @@ public class LuaScriptWithLongTest {
 
 
     @AfterEach
-    void after() {
+    void after() throws ExecutionException, InterruptedException {
+        async.flushdb().get();
 
         if(redisConnection!=null)
             redisConnection.releaseConnection();

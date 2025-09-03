@@ -285,6 +285,24 @@ public class RedisConnection  {
     }
 
 
+    public void flushDb() {
+        final var conn = connection;
+
+        if(conn == null || !conn.isOpen())
+            throw new ConnectionClosedException("[ERROR] connection is closed");
+
+        try {
+            async.flushdb().get(timeAmount, timeUnit);
+        } catch (ExecutionException e) {
+            throw new RuntimeException(e);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        } catch (TimeoutException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+
 
     public StatefulRedisConnection<String, String> getConnection() {
         if(!connection.isOpen())
