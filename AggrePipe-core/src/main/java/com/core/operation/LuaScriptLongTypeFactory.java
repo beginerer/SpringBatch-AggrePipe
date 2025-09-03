@@ -28,6 +28,7 @@ public class LuaScriptLongTypeFactory {
                 "\n" +
                 "local added = redis.call('SADD', idemKey, requestId)\n" +
                 "\n" +
+                "\n" +
                 "-- 0: sum, 1:count, 2: max, 3: min\n" +
                 "local cur = redis.call('HMGET', hKey, '0', '1', '2', '3')\n" +
                 "local sum = cur[1] and tonumber(cur[1]) or nil\n" +
@@ -72,7 +73,7 @@ public class LuaScriptLongTypeFactory {
                 "end\n" +
                 "\n" +
                 "\n" +
-                "return {newSum, newCnt, tostring(newMax), tostring(newMin)}";
+                "return {tostring(newSum), tostring(newCnt), tostring(newMax), tostring(newMin)}";
         int ttl = LuaScript.DEFAULT_TTL;
         boolean safetyMode = false;
         AggregateOutputType outputType = AggregateOutputType.LONG;

@@ -23,6 +23,7 @@ public class ResultSetFactory {
 
         try {
             for(int i=0; i<opIndex.length; i++) {
+
                 String value = result.get(i);
 
                 if(opIndex[i] == Operation.SUM.getIndex() && value!=null) {
@@ -34,7 +35,7 @@ public class ResultSetFactory {
                 }else if(opIndex[i] == Operation.MIN.getIndex() && value!=null) {
                     min = Long.parseLong(value);
                 }else {
-                    throw new LuaScriptNonRetryableException("[ERROR] invalid operationIndex. opIndexValue=%s, value=%s".formatted(opIndex[i], value));
+                    throw new LuaScriptNonRetryableException("[ERROR] unexpected exception. opIndexValue=%s, value=%s".formatted(opIndex[i], value));
                 }
             }
             return new RedisLongResultSet(sum, count, max, min);
@@ -43,6 +44,7 @@ public class ResultSetFactory {
             throw new LuaScriptNonRetryableException("[ERROR] type mismatch exception result=%s".formatted(result.toString()));
         }
     }
+
 
 
     public static RedisDoubleResultSet buildDouble(int[] opIndex, List<String> result) {
@@ -69,7 +71,7 @@ public class ResultSetFactory {
                 }else if(opIndex[i] == Operation.MIN.getIndex() && value!=null) {
                     min = Double.parseDouble(result.get(i));
                 }else {
-                    throw new LuaScriptNonRetryableException("[ERROR] invalid operationIndex. opIndexValue=%s, value=%s".formatted(opIndex[i], value));
+                    throw new LuaScriptNonRetryableException("[ERROR] unexpected exception. opIndexValue=%s, value=%s".formatted(opIndex[i], value));
                 }
             }
             return new RedisDoubleResultSet(sum, count, max, min);

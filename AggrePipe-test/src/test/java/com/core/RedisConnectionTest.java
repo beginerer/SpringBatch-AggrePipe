@@ -26,7 +26,6 @@ public class RedisConnectionTest {
             RedisContainer.DEFAULT_IMAGE_NAME.withTag(RedisContainer.DEFAULT_TAG));
 
 
-
     @Test
     public void connect() {
         StatefulRedisConnection<String, String> connection = redisConnection.getConnection();
@@ -35,16 +34,6 @@ public class RedisConnectionTest {
 
         Assertions.assertThat(ping).isEqualTo("PONG");
     }
-
-
-
-
-
-
-
-
-
-
 
 
     @BeforeEach
