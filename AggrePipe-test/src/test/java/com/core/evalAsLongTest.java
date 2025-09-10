@@ -18,12 +18,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-
 import java.util.concurrent.ExecutionException;
 
 
 @Testcontainers
-public class LuaScriptWithLongTest {
+public class evalAsLongTest {
 
     private RedisAsyncCommands<String, String> async;
     private RedisConnection redisConnection;
@@ -47,7 +46,10 @@ public class LuaScriptWithLongTest {
         LuaScript luaScript = LuaScriptLongTypeFactory.LongAsAll(idemKey, hKey);
 
         // when
+        long start = System.currentTimeMillis();
         RedisLongResultSet resultSet = redisConnection.evalAsLong(luaScript, requestId, String.valueOf(value));
+        long end = System.currentTimeMillis();
+        System.out.println(end - start);
 
         // then
         Boolean requestSuccess = async.sismember(idemKey, requestId).get();
@@ -98,9 +100,12 @@ public class LuaScriptWithLongTest {
         LuaScript luaScript = LuaScriptLongTypeFactory.LongAsAll(idemKey, hKey);
 
         // when
+        long start = System.currentTimeMillis();
         RedisLongResultSet resultSet1 = redisConnection.evalAsLong(luaScript, requestId, String.valueOf(value));
         RedisLongResultSet resultSet2 = redisConnection.evalAsLong(luaScript, requestId2, String.valueOf(value2));
         RedisLongResultSet resultSet3 = redisConnection.evalAsLong(luaScript, requestId3, String.valueOf(value3));
+        long end = System.currentTimeMillis();
+        System.out.println(end - start);
 
         // then
         Boolean reqSuccess1 = async.sismember(idemKey, requestId).get();

@@ -1,12 +1,13 @@
 package com.core.operation;
 
+import com.core.annotaion.AggQuery;
 import io.lettuce.core.ScriptOutputType;
 
 import java.util.Arrays;
 import java.util.Objects;
 
-
-public class DigestDigestLuaScript implements DigestLuaOperation<String, String> {
+@AggQuery(groupByKeys = {})
+public class DigestLuaScript implements DigestLuaOperation<String, String> {
 
 
     private final String name;
@@ -27,7 +28,7 @@ public class DigestDigestLuaScript implements DigestLuaOperation<String, String>
 
 
 
-    public DigestDigestLuaScript(LuaScript spec, String digestScript) {
+    public DigestLuaScript(LuaScript spec, String digestScript) {
         if(digestScript == null || digestScript.isEmpty())
             throw new IllegalArgumentException("[ERROR] digestScript is null or empty");
         this.name = spec.getName();

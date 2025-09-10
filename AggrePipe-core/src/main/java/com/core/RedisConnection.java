@@ -21,6 +21,7 @@ import java.util.concurrent.*;
 
 
 
+
 /**
  * <p>This class is not thread-safe.</p>
  * <p>auto flush is true.</p>
@@ -210,7 +211,7 @@ public class RedisConnection  {
     /**
      * Load the specified Lua script into the script cache.
      * */
-    public DigestDigestLuaScript loadScript(LuaScript spec) {
+    public DigestLuaScript loadScript(LuaScript spec) {
 
         final var conn = connection;
 
@@ -223,7 +224,7 @@ public class RedisConnection  {
         try {
             String sha = async.scriptLoad(spec.getLuaScript()).get(timeAmount, timeUnit);
 
-            return new DigestDigestLuaScript(spec, sha);
+            return new DigestLuaScript(spec, sha);
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -243,14 +244,14 @@ public class RedisConnection  {
     /**
      * Create a SHA1 digest from a Lua script
      * */
-    public DigestDigestLuaScript digest(LuaScript spec) {
+    public DigestLuaScript digest(LuaScript spec) {
 
         if(spec == null)
             throw new IllegalArgumentException("[ERROR] spec must not be null");
 
         String sha = async.digest(spec.getLuaScript());
 
-        return new DigestDigestLuaScript(spec,sha);
+        return new DigestLuaScript(spec,sha);
     }
 
 

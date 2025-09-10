@@ -1,7 +1,7 @@
 package com.core.result;
 
-
 import com.core.operation.Operation;
+
 
 public final class RedisLongResultSet implements RedisResultSet {
 
@@ -72,6 +72,4 @@ public final class RedisLongResultSet implements RedisResultSet {
 
         return mask;
     }
-
-
 }

@@ -15,6 +15,7 @@
   <modules>
     <module>AggrePipe-core</module>
     <module>AggrePipe-test</module>
+      <module>AggrePipe-core2</module>
   </modules>
 
   <scm>
