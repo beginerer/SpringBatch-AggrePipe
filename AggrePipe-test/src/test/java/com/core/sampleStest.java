@@ -10,8 +10,8 @@ public class sampleStest {
 
     @Test
     public void Test() {
-        int v = 1 << 1;
+        String name = Long.class.getName();
 
-        System.out.println(v);
+        System.out.println(name);
     }
 }

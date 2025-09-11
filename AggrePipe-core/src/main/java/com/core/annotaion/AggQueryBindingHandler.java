@@ -1,23 +1,18 @@
 package com.core.annotaion;
 
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+
+public class AggQueryBindingHandler {
 
 
-public class AggQueryBindingHandler{
+    private final AggQueryRegistry registry;
 
 
-    private final List<String> bases;
-    private final Map<String, List<AggMeta>> map;
-
-
-
-    public AggQueryBindingHandler(List<String> bases) {
-        this.bases = bases;
-        map = new HashMap<>();
+    public AggQueryBindingHandler(AggQueryRegistry registry) {
+        this.registry = registry;
     }
+
+
 
 
 }

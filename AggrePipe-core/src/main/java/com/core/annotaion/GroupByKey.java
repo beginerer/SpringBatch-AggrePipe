@@ -9,7 +9,6 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
 public @interface GroupByKey {
 
 
-
     String field();
 
 }
