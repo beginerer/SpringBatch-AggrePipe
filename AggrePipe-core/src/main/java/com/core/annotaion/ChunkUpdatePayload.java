@@ -1,21 +1,31 @@
 package com.core.annotaion;
 
-import java.util.*;
 
+import java.util.List;
 
 public class ChunkUpdatePayload {
 
 
-    private String name;
+    private String scriptSerialNumber;
 
-    private String token; // 멱등성을 위한 chunk당 value
-
-    private List<>
-
-    private int ttl;
-
-    private boolean strictValidation;
+    private List<Chunk> data;
 
 
 
+    public ChunkUpdatePayload(String scriptSerialNumber, List<Chunk> data) {
+        this.scriptSerialNumber = scriptSerialNumber;
+        this.data = data;
+    }
+
+
+
+
+    public String getScriptSerialNumber() {
+        return scriptSerialNumber;
+    }
+
+
+    public List<Chunk> getData() {
+        return data;
+    }
 }

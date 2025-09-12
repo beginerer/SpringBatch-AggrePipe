@@ -12,15 +12,15 @@ public class AggQueryMetadata {
 
     private final boolean isRecord;
 
-    private final List<Item> items;
+    private final List<ItemSpec> itemSpecs;
 
 
 
-    public AggQueryMetadata(String name, GroupByKey[] groupByKeys, boolean isRecord, List<Item> items) {
+    public AggQueryMetadata(String name, GroupByKey[] groupByKeys, boolean isRecord, List<ItemSpec> itemSpecs) {
         this.name = name;
         this.groupByKeys = groupByKeys;
         this.isRecord = isRecord;
-        this.items = items;
+        this.itemSpecs = itemSpecs;
     }
 
 
@@ -36,8 +36,8 @@ public class AggQueryMetadata {
         return isRecord;
     }
 
-    public List<Item> getItems() {
-        return items;
+    public List<ItemSpec> getItems() {
+        return itemSpecs;
     }
 
 }

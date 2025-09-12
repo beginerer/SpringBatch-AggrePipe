@@ -55,7 +55,7 @@ public class RedisConnection  {
 
 
 
-    public RedisLongResultSet evalAsLong(LuaOperation<String, String> op, String... data) {
+    public RedisLongResultSet evalAsLong(LuaOperation<String, String> op, String argv) {
 
         final var conn = connection;
 
@@ -65,13 +65,8 @@ public class RedisConnection  {
         if(op == null)
             throw new IllegalArgumentException("[ERROR] LuaOperation is null");
 
-        final boolean safetyMode = op.isSafetyMode();
+        final boolean safetyMode = op.isStrictMode();
 
-        if(safetyMode) {
-            if(op.getAggregateOutputType() != AggregateOutputType.LONG || op.getScriptOutputType() != ScriptOutputType.MULTI)
-                throw new IllegalArgumentException("[ERROR] unsupported output type. AggregateOutputType=%s, ScriptOutputType=%s, required=%s %s".
-                        formatted(op.getAggregateOutputType(), op.getScriptOutputType(), AggregateOutputType.LONG, ScriptOutputType.MULTI));
-        }
 
         try {
             String[] argv = op.inputData(data);
@@ -85,7 +80,6 @@ public class RedisConnection  {
                         formatted(response));
 
             List<String> result = (List<String>) response;
-            int[] opIndex = op.opIndex();
 
             return ResultSetFactory.buildLong(opIndex, result);
 
@@ -115,7 +109,7 @@ public class RedisConnection  {
         if(op == null)
             throw new IllegalArgumentException("[ERROR] LuaOperation is null");
 
-        boolean safetyMode = op.isSafetyMode();
+        boolean safetyMode = op.isStrictMode();
 
         if (safetyMode) {
             if(op.getAggregateOutputType() != AggregateOutputType.LONG || op.getScriptOutputType() != ScriptOutputType.INTEGER)
@@ -165,7 +159,7 @@ public class RedisConnection  {
         if(op == null)
             throw new IllegalArgumentException("[ERROR] LuaOperation is null");
 
-        final boolean safetyMode = op.isSafetyMode();
+        final boolean safetyMode = op.isStrictMode();
 
         if(safetyMode) {
             if(op.getAggregateOutputType() != AggregateOutputType.DOUBLE || op.getScriptOutputType() != ScriptOutputType.MULTI)

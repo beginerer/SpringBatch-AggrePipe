@@ -1,48 +1,189 @@
 package com.core.annotaion;
 
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
-import java.util.Map;
+import com.core.operation.ValueType;
+import org.springframework.util.ClassUtils;
+
+import java.lang.invoke.*;
+import java.lang.reflect.RecordComponent;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
+
 
 public class AggQueryRegistry {
 
 
-    private final Map<Class<?>, AggQueryMetadata> registry;
 
-    private final ConcurrentHashMap<Key, Object> CACHE = new ConcurrentHashMap<>();
+    private final Map<Class<?>, AggQueryMetadata> metaData;
+
+    private final Map<Class<?>, List<QueryKey>> keyData;
+
+    private final Map<QueryKey, ItemSpec> keyItemMap;
+
+    private final ConcurrentHashMap<QueryKey, Object> CACHE;
 
 
 
 
-    public AggQueryRegistry(Map<Class<?>, AggQueryMetadata> registry) {
-        this.registry = registry;
-        init();
+    public AggQueryRegistry(Map<Class<?>, AggQueryMetadata> metaData) {
+        this.metaData = metaData;
+        this.keyItemMap = new HashMap<>();
+        this.keyData = buildKeyData();
+        this.CACHE = buildCacheData();
     }
 
-    private void init() throws IllegalAccessException {
-        MethodHandles.Lookup base = MethodHandles.lookup();
-
-        for (Class<?> queryDto : registry.keySet()) {
-            AggQueryMetadata metadata = registry.get(queryDto);
-
-            MethodHandles.Lookup lookup = MethodHandles.privateLookupIn(queryDto, base);
-            lookup.unreflect()
-            if(metadata.isRecord()) {
 
 
+    private Map<Class<?>, List<QueryKey>> buildKeyData() {
+        Map<Class<?>, List<QueryKey>> map = new HashMap<>();
 
+        for (Class<?> queryClass : metaData.keySet()) {
+            List<QueryKey> queryKeys = new ArrayList<>();
+            AggQueryMetadata metadata = metaData.get(queryClass);
 
-            }else {
-
+            for (ItemSpec item : metadata.getItems()) {
+                if(item.getValueType() == ValueType.LONG) {
+                    QueryKey queryKey = new QueryKey(queryClass, item.getFieldName(), long.class);
+                    queryKeys.add(queryKey);
+                    keyItemMap.put(queryKey, item);
+                } else if(item.getValueType() == ValueType.DOUBLE) {
+                    QueryKey queryKey = new QueryKey(queryClass, item.getFieldName(), double.class);
+                    queryKeys.add(queryKey);
+                    keyItemMap.put(queryKey, item);
+                }else
+                    throw new IllegalArgumentException("[ERROR] Unsupported value type. valueType=%s".
+                            formatted(item.getValueType()));
             }
+            map.put(queryClass, queryKeys);
+        }
+        return map;
+    }
 
+
+    private ConcurrentHashMap<QueryKey, Object> buildCacheData() {
+        ConcurrentHashMap<QueryKey,Object> cacheMap = new ConcurrentHashMap<>();
+
+        for (Class<?> queryClass : keyData.keySet()) {
+            for (QueryKey queryKey : keyData.get(queryClass)) {
+                Object result = cacheMap.putIfAbsent(queryKey, createLambda(queryKey.getQueryDto(), queryKey.getFieldName(), queryKey.getDataType()));
+
+                if(result != null)
+                    throw new IllegalStateException("[ERROR] duplicate key: " + queryKey);
+            }
+        }
+        return cacheMap;
+    }
+
+
+
+    private Object createLambda(Class<?> queryClass, String fieldName, Class<?> returnType) {
+        try {
+            Class<?> wrappedType = ClassUtils.resolvePrimitiveIfNecessary(returnType);
+            if (wrappedType != Long.class && wrappedType != Double.class) {
+                throw new IllegalArgumentException("primitiveRetType must be long.class or double.class");
+            }
+            boolean isLong = (wrappedType == Long.class);
+            Class<?> prim = isLong ? long.class : double.class;
+
+            MethodHandles.Lookup base = MethodHandles.lookup();
+            MethodHandles.Lookup lookup = MethodHandles.privateLookupIn(queryClass, base);
+
+            MethodHandle impl = findTargetHandle(lookup, queryClass, fieldName);
+            MethodType erased = MethodType.methodType(prim, Object.class);
+            MethodType dyn = MethodType.methodType(prim, queryClass);
+
+            Class<?> iface = isLong ? LongAccessor.class : DoubleAccessor.class;
+            CallSite cs = LambdaMetafactory.metafactory(lookup, "get", MethodType.methodType(iface), erased, impl, dyn);
+
+            if (isLong) {
+                return (LongAccessor) cs.getTarget().invokeExact();
+            } else {
+                return (DoubleAccessor) cs.getTarget().invokeExact();
+            }
+        } catch (IllegalAccessException | LambdaConversionException e) {
+            throw new RuntimeException(e);
+        } catch (Throwable e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+
+    private MethodHandle findTargetHandle(MethodHandles.Lookup lookup, Class<?> queryClass, String fieldName) throws IllegalAccessException {
+
+        if(queryClass.isRecord()) {
+            for (RecordComponent rc : queryClass.getRecordComponents()) {
+                if(rc.getName().equals(fieldName))
+                    return lookup.unreflect(rc.getAccessor());
+            }
         }
 
+        String cap = Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1);
+        String methodName = "get" + cap;
+        try {
+            var m = queryClass.getMethod(methodName);
+            return lookup.unreflect(m);
+
+        } catch (NoSuchMethodException e) {
+            throw new IllegalArgumentException("[ERROR] %s class doesn't have %s field or getter Method".
+                    formatted(queryClass.getName(), fieldName));
+        }
     }
 
-    private MethodHandle findMethodHandler()
+
+    public List<ItemUnit> extractValue(Object queryDto) {
+        Class<?> queryClass = queryDto.getClass();
+
+        List<QueryKey> queryKeys = keyData.get(queryClass);
+        if (queryKeys == null || queryKeys.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "[ERROR] %s is not included in MetaData".formatted(queryClass.getName()));
+        }
+
+        List<ItemUnit> itemUnits = new ArrayList<>();
+
+        for (QueryKey queryKey : queryKeys) {
+            if(queryKey.getDataType() == Long.class) {
+                LongAccessor longAcc = forLong(queryKey);
+                long value = longAcc.get(queryDto);
+
+                ItemSpec itemSpec = keyItemMap.get(queryKey);
+                ItemUnit itemUnit = new ItemUnit(itemSpec.getFieldName(), itemSpec.getOp(), itemSpec.getValueType(), value, null);
+                itemUnits.add(itemUnit);
+
+            }else if(queryKey.getDataType() == Double.class) {
+                DoubleAccessor doubleAcc = forDouble(queryKey);
+                double value = doubleAcc.get(queryDto);
+
+                ItemSpec itemSpec = keyItemMap.get(queryKey);
+                ItemUnit itemUnit = new ItemUnit(itemSpec.getFieldName(), itemSpec.getOp(), itemSpec.getValueType(), null, value);
+                itemUnits.add(itemUnit);
+            }else
+                throw new IllegalArgumentException("[ERROR] Unsupported data type. dataType=%s".formatted(queryKey.getDataType()));
+        }
+
+        return itemUnits;
+    }
 
 
+    public String getGroupByKeys(String SERIAL_NUMBER, Object queryDto) {
+        Class<?> queryClass = queryDto.getClass();
+        AggQueryMetadata metadata = metaData.get(queryClass);
+        if(metadata == null)
+            throw new IllegalArgumentException("[ERROR] %s class is not included in MetaData".formatted(queryClass));
 
+        return generateGroupByKey(SERIAL_NUMBER, metadata.getGroupByKeys());
+    }
+
+
+    private LongAccessor forLong(QueryKey queryKey) {
+        return (LongAccessor) CACHE.get(queryKey);
+    }
+
+    private DoubleAccessor forDouble(QueryKey queryKey) {
+        return (DoubleAccessor) CACHE.get(queryKey);
+    }
+
+    private String generateGroupByKey(String SERIAL_NUMBER, GroupByKey[] keys) {
+        return "["+SERIAL_NUMBER +"]" + Arrays.stream(keys).map(GroupByKey::field).collect(Collectors.joining(","));
+    }
 }

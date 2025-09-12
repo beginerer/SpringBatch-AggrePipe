@@ -4,7 +4,5 @@ public enum ValueType {
 
     LONG,
 
-    DOUBLE,
-
-    COUNT
+    DOUBLE;
 }

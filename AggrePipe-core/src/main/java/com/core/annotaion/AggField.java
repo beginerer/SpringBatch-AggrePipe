@@ -12,8 +12,6 @@ import java.lang.annotation.*;
 public @interface AggField {
 
 
-    String fieldName() default "";
-
     Operation op();
 
     ValueType type();

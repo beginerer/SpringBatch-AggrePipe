@@ -4,35 +4,47 @@ import org.springframework.util.ClassUtils;
 
 import java.util.Objects;
 
-public class Key {
+public class QueryKey {
 
 
     private final Class<?> queryDto;
 
-    private final String name;
+    private final String fieldName;
 
     private final Class<?> dataType;
 
 
-    public Key(Class<?> queryDto, String logicalName, Class<?> rawType) {
+    public QueryKey(Class<?> queryDto, String fieldName, Class<?> rawType) {
         this.queryDto = Objects.requireNonNull(queryDto);
-        this.name = Objects.requireNonNull(logicalName);
+        this.fieldName = Objects.requireNonNull(fieldName);
         Objects.requireNonNull(rawType);
         this.dataType = ClassUtils.resolvePrimitiveIfNecessary(rawType);
     }
 
 
+    public Class<?> getQueryDto() {
+        return queryDto;
+    }
+
+    public String getFieldName() {
+        return fieldName;
+    }
+
+    public Class<?> getDataType() {
+        return dataType;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
-        Key that = (Key) o;
+        QueryKey that = (QueryKey) o;
         return Objects.equals(queryDto, that.queryDto) &&
-                Objects.equals(name, that.name) &&
+                Objects.equals(fieldName, that.fieldName) &&
                 Objects.equals(dataType, that.dataType);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(queryDto, name, dataType);
+        return Objects.hash(queryDto, fieldName, dataType);
     }
 }

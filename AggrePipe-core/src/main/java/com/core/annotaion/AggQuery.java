@@ -10,6 +10,8 @@ import java.lang.annotation.Target;
 /**
  * <p>Each {@link GroupByKey} listed in {@link #groupByKeys()} MUST correspond to a
  * declared field on the annotated DTO.</p>
+ * <h2>Caution</h2>
+ * <P><Strong>Getter method is necessary</Strong></P>
  *
  * <h2>Usage</h2>
  * <pre>{@code

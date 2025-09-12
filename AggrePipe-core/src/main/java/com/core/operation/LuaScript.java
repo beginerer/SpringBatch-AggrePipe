@@ -1,5 +1,7 @@
 package com.core.operation;
 
+import com.core.annotaion.ChunkUpdatePayload;
+import com.core.annotaion.Jackson;
 import io.lettuce.core.ScriptOutputType;
 
 import java.util.Arrays;
@@ -7,60 +9,58 @@ import java.util.Objects;
 
 
 /**
- * <p>key : KEYS[1]=idemtKey, KEYS[2]=hKey</p>
- * <p>argv: ARGV[1]=requestId, ARGV[2]=value, ARGV[3]=ttl</p>
+ * <h3>Must match the Spring Batch job lifecycle.</h3>
+ * <p>key : KEYS[1]=idempKey</p>
+ * <p>argv: ARGV[1]= ttl, ARGV[2]=payLoad</p>
  * */
 public class LuaScript implements LuaOperation<String, String> {
 
 
     private final String name;
 
-    private final String script;
+    private final String SERIAL_NUMBER;
 
-    private final AggregateOutputType aggregateOutputType;
+    private final String script;
 
     private final String[] keys;
 
     private final int ttl;
 
-    private final boolean safetyMode;
+    private final ScriptOutputType scriptOutputType;
+
+    private final boolean strictMode;
 
     public static final int DEFAULT_TTL = 86400;
 
-    private int[] opIndex;
 
 
 
-    public LuaScript(String name, String script, int[] opIndex, String idemKey, String hKey, int ttl, boolean safetyMode, AggregateOutputType outputType) {
+
+    public LuaScript(String name, String SERIAL_NUMBER, String script, String idemKey, int ttl, boolean strictMode) {
         this.name = Objects.requireNonNull(name, "name must not be null");
+        this.SERIAL_NUMBER = Objects.requireNonNull(SERIAL_NUMBER);
         this.script = Objects.requireNonNull(script, "script must not be null");
-        this.aggregateOutputType = outputType;
         Objects.requireNonNull(idemKey,"setKey must not be null");
-        Objects.requireNonNull(hKey, "numKey must not be null");
-        this.keys = new String[]{idemKey, hKey};
-        this.safetyMode = safetyMode;
+        this.scriptOutputType = ScriptOutputType.STATUS;
+        this.keys = new String[]{idemKey};
+        this.strictMode = strictMode;
         this.ttl = ttl;
-        this.opIndex = Arrays.copyOf(opIndex, opIndex.length);
     }
 
 
 
-    @Override
-    public String[] inputData(String... data) {
-        if (data == null || data.length != 2) {
-            throw new IllegalArgumentException(
-                    "[ERROR] ARGV expects exactly 2 elements: [requestId, value], but got " + Arrays.toString(data)
-            );
-        }
-        String requestId = Objects.requireNonNull(data[0], "requestId must not be null");
-        String value = Objects.requireNonNull(data[1], "value must not be null");
-        return new String[]{requestId, value, String.valueOf(ttl)};
-    }
 
 
     @Override
-    public int[] opIndex() {
-        return opIndex;
+    public String[] inputData(ChunkUpdatePayload payload) {
+        if(!payload.getScriptSerialNumber().equals(SERIAL_NUMBER))
+            throw new IllegalArgumentException("[ERROR] Unsupported payLoad. required=%s current=%s".
+                    formatted(SERIAL_NUMBER, payload.getScriptSerialNumber()));
+
+
+        String argv = Jackson.convetToString(payload);
+
+        return new String[]{String.valueOf(ttl), argv};
     }
 
 
@@ -70,18 +70,19 @@ public class LuaScript implements LuaOperation<String, String> {
     }
 
     @Override
+    public String getSerialNumber() {
+        return SERIAL_NUMBER;
+    }
+
+    @Override
     public String getLuaScript() {
         return script;
     }
 
-    @Override
-    public AggregateOutputType getAggregateOutputType() {
-        return aggregateOutputType;
-    }
 
     @Override
     public ScriptOutputType getScriptOutputType() {
-        return aggregateOutputType.getScriptOutputType();
+        return scriptOutputType;
     }
 
     @Override
@@ -94,11 +95,16 @@ public class LuaScript implements LuaOperation<String, String> {
         return ttl;
     }
 
-
     @Override
-    public boolean isSafetyMode() {
-        return safetyMode;
+    public boolean isStrictMode() {
+        return strictMode;
     }
+
+
+
+
+
+
 
     @Override
     public String toString() {

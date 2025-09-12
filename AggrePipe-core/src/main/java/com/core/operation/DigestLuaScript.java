@@ -1,12 +1,11 @@
 package com.core.operation;
 
-import com.core.annotaion.AggQuery;
 import io.lettuce.core.ScriptOutputType;
 
 import java.util.Arrays;
 import java.util.Objects;
 
-@AggQuery(groupByKeys = {})
+
 public class DigestLuaScript implements DigestLuaOperation<String, String> {
 
 
@@ -38,7 +37,7 @@ public class DigestLuaScript implements DigestLuaOperation<String, String> {
         this.aggregateOutputType = spec.getAggregateOutputType();
         this.keys = spec.getKeys();
         this.ttl = spec.getTtl();
-        this.safetyMode = spec.isSafetyMode();
+        this.safetyMode = spec.isStrictMode();
     }
 
 
@@ -99,7 +98,7 @@ public class DigestLuaScript implements DigestLuaOperation<String, String> {
     }
 
     @Override
-    public boolean isSafetyMode() {
+    public boolean isStrictMode() {
         return safetyMode;
     }
 

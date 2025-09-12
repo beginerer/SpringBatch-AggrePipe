@@ -3,12 +3,8 @@ package com.core.annotaion;
 
 import com.core.operation.ValueType;
 import org.springframework.beans.factory.config.BeanDefinition;
-import org.springframework.beans.factory.support.BeanDefinitionBuilder;
-import org.springframework.beans.factory.support.BeanDefinitionReaderUtils;
-import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.beans.factory.support.BeanDefinitionValidationException;
-import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
-import org.springframework.context.annotation.ImportBeanDefinitionRegistrar;
+import org.springframework.context.annotation.*;
 import org.springframework.core.annotation.AnnotationAttributes;
 import org.springframework.core.type.AnnotationMetadata;
 import org.springframework.core.type.filter.AnnotationTypeFilter;
@@ -20,17 +16,23 @@ import java.util.*;
 
 
 
-public class AggregationQuerySupport implements ImportBeanDefinitionRegistrar {
+
+@Configuration
+public class AggregationQuerySupport implements ImportAware {
+
+
+    private AnnotationAttributes attrs;
+
+    private Map<Class<?>, AggQueryMetadata> metadataMap;
+
 
 
 
 
     @Override
-    public void registerBeanDefinitions(AnnotationMetadata metadata, BeanDefinitionRegistry registry) {
-
-        AnnotationAttributes attrs = AnnotationAttributes.fromMap(
-                metadata.getAnnotationAttributes(EnableAggQuery.class.getName())
-        );
+    public void setImportMetadata(AnnotationMetadata metadata) {
+        this.attrs = AnnotationAttributes.fromMap(
+                metadata.getAnnotationAttributes(EnableAggQuery.class.getName()));
 
         Set<String> baseSet = new LinkedHashSet<>();
 
@@ -48,20 +50,21 @@ public class AggregationQuerySupport implements ImportBeanDefinitionRegistrar {
         baseSet.add(ClassUtils.getPackageName(metadata.getClassName()));
         List<String> bases = new ArrayList<>(baseSet);
 
-
-        Map<Class<?>, AggQueryMetadata> metaDataMap = scanAndBuildMetadata(bases);
-
-        BeanDefinitionBuilder b = BeanDefinitionBuilder.rootBeanDefinition(AggQueryRegistry.class)
-                .addConstructorArgValue(metaDataMap);
-
-        String registryBeanName = BeanDefinitionReaderUtils.registerWithGeneratedName(b.getBeanDefinition(), registry);
-
-
-        BeanDefinitionBuilder b2 = BeanDefinitionBuilder.rootBeanDefinition(AggQueryBindingHandler.class)
-                .addConstructorArgReference(registryBeanName);
-
-        BeanDefinitionReaderUtils.registerWithGeneratedName(b2.getBeanDefinition(), registry);
+        this.metadataMap = scanAndBuildMetadata(bases);
     }
+
+
+    @Bean
+    public AggQueryRegistry aggQueryRegistry() {
+        return new AggQueryRegistry(metadataMap);
+    }
+
+
+    @Bean
+    public AggQueryBindingHandler aggQueryBindingHandler(AggQueryRegistry registry) {
+        return new AggQueryBindingHandler(registry);
+    }
+
 
 
     private Map<Class<?>, AggQueryMetadata> scanAndBuildMetadata(List<String> bases) {
@@ -93,30 +96,30 @@ public class AggregationQuerySupport implements ImportBeanDefinitionRegistrar {
     private AggQueryMetadata buildMetaData(Class<?> clazz) {
         if(clazz.isRecord()) {
             List<RecordComponent> aggFields = getAggFields(clazz.getRecordComponents());
-
-            List<Item> items = new ArrayList<>();
+            List<ItemSpec> itemSpecs = new ArrayList<>();
 
             for (RecordComponent aggField : aggFields) {
                 AggField annotation = aggField.getDeclaredAnnotation(AggField.class);
-                Item item = new Item(annotation.fieldName(), annotation.op(), annotation.type());
-                items.add(item);
+                ItemSpec itemSpec = new ItemSpec(aggField.getName(), annotation.op(), annotation.type());
+                itemSpecs.add(itemSpec);
             }
             AggQuery ann = clazz.getDeclaredAnnotation(AggQuery.class);
+            String className = ann.name().isBlank() ? clazz.getName() : ann.name();
 
-            return new AggQueryMetadata(ann.name(), ann.groupByKeys(), true, items);
+            return new AggQueryMetadata(className, ann.groupByKeys(), true, itemSpecs);
         }else {
             List<Field> aggFields = getAggFields(clazz.getDeclaredFields());
-
-            List<Item> items = new ArrayList<>();
+            List<ItemSpec> itemSpecs = new ArrayList<>();
 
             for (Field aggField : aggFields) {
                 AggField annotation = aggField.getDeclaredAnnotation(AggField.class);
-                Item item = new Item(annotation.fieldName(), annotation.op(), annotation.type());
-                items.add(item);
+                ItemSpec itemSpec = new ItemSpec(aggField.getName(), annotation.op(), annotation.type());
+                itemSpecs.add(itemSpec);
             }
             AggQuery ann = clazz.getDeclaredAnnotation(AggQuery.class);
+            String className = ann.name().isBlank() ? clazz.getName() : ann.name();
 
-            return new AggQueryMetadata(ann.name(), ann.groupByKeys(), false, items);
+            return new AggQueryMetadata(className, ann.groupByKeys(), false, itemSpecs);
         }
     }
 
@@ -148,7 +151,7 @@ public class AggregationQuerySupport implements ImportBeanDefinitionRegistrar {
 
 
         List<String> hasAggFieldAnn = keyNames.stream().filter(keyName -> hasAggFieldAnnotation(queryDto, keyName)).toList();
-        if(hasAggFieldAnn != null || hasAggFieldAnn.isEmpty())
+        if(!hasAggFieldAnn.isEmpty())
             throw new BeanDefinitionValidationException("[ERROR] group-by fields must not declare @AggField annotation : %s");
     }
 
@@ -162,18 +165,6 @@ public class AggregationQuerySupport implements ImportBeanDefinitionRegistrar {
                 throw new BeanDefinitionValidationException("[ERROR] %s class does not declare any @AggField".
                         formatted(queryDto.getName()));
 
-            List<String> fieldsName = aggFields.stream().map(rc -> {
-                AggField annotation = rc.getDeclaredAnnotation(AggField.class);
-                String fieldName = annotation.fieldName();
-                return fieldName.isEmpty() ? rc.getName() : fieldName;
-            }).toList();
-
-
-            List<String> dupFields = findDuplicates(fieldsName);
-            if(!dupFields.isEmpty())
-                throw new BeanDefinitionValidationException("[ERROR] %s class has duplicate AggField name : %s".
-                        formatted(queryDto.getName(), dupFields));
-
 
             aggFields.stream().forEach(rc -> {
                 AggField annotation = rc.getDeclaredAnnotation(AggField.class);
@@ -185,16 +176,6 @@ public class AggregationQuerySupport implements ImportBeanDefinitionRegistrar {
                 throw new BeanDefinitionValidationException("[ERROR] %s class does not declare any @AggField".
                         formatted(queryDto.getName()));
 
-            List<String> fieldsName = aggFields.stream().map(field -> {
-                AggField annotation = field.getDeclaredAnnotation(AggField.class);
-                String fieldName = annotation.fieldName();
-                return fieldName.isEmpty() ? field.getName() : fieldName;
-            }).toList();
-
-            List<String> dupFields = findDuplicates(fieldsName);
-            if(!dupFields.isEmpty())
-                throw new BeanDefinitionValidationException("[ERROR] %s class has duplicate AggField name : %s".
-                        formatted(queryDto.getName(), dupFields));
 
             aggFields.stream().forEach(field -> {
                 AggField annotation = field.getDeclaredAnnotation(AggField.class);
@@ -275,11 +256,7 @@ public class AggregationQuerySupport implements ImportBeanDefinitionRegistrar {
             if(fieldType != Double.class)
                 throw new BeanDefinitionValidationException("[ERROR] Unsupported valueType. valueType=%s, fieldType=%s".
                         formatted(valueType.name(), fieldType.getName()));
-        }else if(valueType == ValueType.COUNT) {
-            if(fieldType != Long.class && fieldType!= Integer.class)
-                throw new BeanDefinitionValidationException("[ERROR] Unsupported valueType. valueType=%s, fieldType=%s".
-                        formatted(valueType.name(), fieldType.getName()));
-        }else {
+        } else {
             throw new BeanDefinitionValidationException("[ERROR] Unsupported valueType. valueType=%s, fieldType=%s".
                     formatted(valueType.name(), fieldType.getName()));
         }

@@ -1,19 +1,18 @@
 package com.core.operation;
 
+import com.core.annotaion.ChunkUpdatePayload;
 import io.lettuce.core.ScriptOutputType;
 
 public interface LuaOperation <T, V> {
 
 
-    V[] inputData(V... data);
-
-    int[] opIndex();
+    V[] inputData(ChunkUpdatePayload payload);
 
     String getName();
 
-    String getLuaScript();
+    String getSerialNumber();
 
-    AggregateOutputType getAggregateOutputType();
+    String getLuaScript();
 
     ScriptOutputType getScriptOutputType();
 
@@ -21,5 +20,5 @@ public interface LuaOperation <T, V> {
 
     int getTtl();
 
-    boolean isSafetyMode();
+    boolean isStrictMode();
 }

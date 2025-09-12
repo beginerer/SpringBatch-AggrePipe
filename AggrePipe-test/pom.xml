@@ -24,6 +24,7 @@
     </properties>
 
     <dependencies>
+
         <dependency>
             <groupId>com.core</groupId>
             <artifactId>AggrePipe-core</artifactId>
@@ -33,6 +34,10 @@
             <groupId>org.springframework.batch</groupId>
             <artifactId>spring-batch-core</artifactId>
             <version>${spring.batch.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
         </dependency>
         <dependency>
             <groupId>io.lettuce</groupId>
@@ -50,6 +55,11 @@
             <version>${logback.classic.version}</version>
         </dependency>
         <!-- test -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>testcontainers</artifactId>
@@ -86,5 +96,17 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring.boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
 </project>
