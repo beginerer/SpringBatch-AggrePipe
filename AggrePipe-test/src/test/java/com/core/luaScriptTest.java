@@ -73,6 +73,9 @@ public class luaScriptTest {
 
         long start = System.currentTimeMillis();
         RedisResultSet result = redisConnection.eval(luaScript, payload);
+        long end = System.currentTimeMillis();
+        long gap = end - start;
+        System.out.println("time: " + gap);
 
         String scriptSerialNumber = result.getScriptSerialNumber();
         Chunk  chunk = result.getData().get(0);
@@ -122,10 +125,6 @@ public class luaScriptTest {
             Assertions.assertThat(max_quantity).isEqualTo(String.valueOf(maxQuantity));
             Assertions.assertThat(min_quantity).isEqualTo(String.valueOf(minQuantity));
         }
-
-        long end = System.currentTimeMillis();
-        long gap = end - start;
-        System.out.println("time: " + gap);
     }
 
     @Test
@@ -134,8 +133,8 @@ public class luaScriptTest {
         String serialNumber = "serialNumber";
         String idempKey = "idempKey";
         int ttl = 5000;
-        int number = 1000;
-        int range = 10;
+        int number = 10000;
+        int range = 100;
 
         LuaScript luaScript = LuaScriptFactory.create(serialNumber, idempKey, ttl);
         QueryDtoFactory.statistics statistics = QueryDtoFactory.getStatistics(serialNumber, number, range);
@@ -153,6 +152,9 @@ public class luaScriptTest {
 
         long start = System.currentTimeMillis();
         RedisResultSet result = redisConnection.evalsha(digestLuaScript, payload);
+        long end = System.currentTimeMillis();
+        long gap = end - start;
+        System.out.println("time: " + gap);
 
         String scriptSerialNumber = result.getScriptSerialNumber();
         Chunk  chunk = result.getData().get(0);
@@ -202,9 +204,6 @@ public class luaScriptTest {
             Assertions.assertThat(max_quantity).isEqualTo(String.valueOf(maxQuantity));
             Assertions.assertThat(min_quantity).isEqualTo(String.valueOf(minQuantity));
         }
-        long end = System.currentTimeMillis();
-        long gap = end - start;
-        System.out.println("time: " + gap);
     }
 
     boolean equalByScale(double a, double b, int scale) {

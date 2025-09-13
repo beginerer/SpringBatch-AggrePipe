@@ -25,6 +25,4 @@ public enum Operation {
         return "_meta:count";
     }
 
-
-
 }

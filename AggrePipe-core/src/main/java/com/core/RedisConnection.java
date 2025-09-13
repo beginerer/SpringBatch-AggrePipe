@@ -62,7 +62,7 @@ public class RedisConnection  {
 
         try {
             String[] argv = op.inputData(payload);
-            var response = async.eval(op.getLuaScript(), op.getScriptOutputType(), op.getKeys(), argv).get(timeAmount, timeUnit);
+            var response = async.eval(op.getLuaScript(), op.getScriptOutputType(), op.getKeys(), argv).get(timeAmount, TimeUnit.MINUTES);
 
             if(response == null)
                 throw new LuaScriptNonRetryableException("[ERROR] result is null");

@@ -18,13 +18,13 @@ import java.lang.annotation.Target;
  * @AggQuery(
  *     name = "OrderAggByMemberAndDate",
  *     groupByKeys = {
- *         @GroupByKey(field = "memberId"),
- *         @GroupByKey(field = "orderDate")
+ *         @GroupByKey(field = "memberId", type = ValueType.LONG),
+ *         @GroupByKey(field = "orderId", type= ValueType.LONG)
  *     }
  * )
  * public record OrderAggDto(
  *     Long memberId,
- *     LocalDate orderDate,
+ *     Long orderId,
  *     @AggField(op = Operation.SUM, type = ValueType.LONG) long amountKrw,
  *     @AggField(op = Operation.COUNT, type = ValueType.LONG) long cnt
  * ) {}
