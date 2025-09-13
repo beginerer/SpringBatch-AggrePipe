@@ -1,4 +1,9 @@
 
+## Architecture
+<img width="876" height="430" alt="스크린샷 2025-09-13 오후 9 22 03" src="https://github.com/user-attachments/assets/7a7aed6a-dff8-41ad-819a-b1a3d7e70fa3" />
+
+
+
 ## Perfomance Test
 
 <img width="355" height="214" alt="스크린샷 2025-09-13 오후 8 39 07" src="https://github.com/user-attachments/assets/19b0e6f4-a884-4e75-978f-6802b8178fad" /> </br>
