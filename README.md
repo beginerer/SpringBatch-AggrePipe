@@ -8,7 +8,7 @@
 
 <img width="355" height="214" alt="스크린샷 2025-09-13 오후 8 39 07" src="https://github.com/user-attachments/assets/19b0e6f4-a884-4e75-978f-6802b8178fad" /> </br>
 
-<img width="356" height="212" alt="스크린샷 2025-09-13 오후 8 46 04" src="https://github.com/user-attachments/assets/6926464e-e117-4173-8428-866090f63c79" />
+<img width="357" height="216" alt="스크린샷 2025-09-13 오후 10 27 06" src="https://github.com/user-attachments/assets/e232330a-d21d-4b54-8533-e20c39160f35" />
 
 
 ### Test Dto
