@@ -1,4 +1,4 @@
-package com.core.annotaion;
+package com.core;
 
 import com.core.operation.Operation;
 import com.core.operation.ValueType;
@@ -8,13 +8,13 @@ public class ItemSpec {
 
     private String fieldName;
 
-    private Operation op;
+    private Operation[] op;
 
     private ValueType valueType;
 
 
 
-    public ItemSpec(String fieldName, Operation op, ValueType valueType) {
+    public ItemSpec(String fieldName, Operation[] op, ValueType valueType) {
         this.fieldName = fieldName;
         this.op = op;
         this.valueType = valueType;
@@ -26,7 +26,7 @@ public class ItemSpec {
         return fieldName;
     }
 
-    public Operation getOp() {
+    public Operation[] getOp() {
         return op;
     }
 

@@ -1,10 +1,14 @@
-package com.core.annotaion;
+package com.core.support;
 
+import com.core.Chunk;
+import com.core.ChunkUpdatePayload;
+import com.core.ItemUnit;
+import com.core.operation.Operation;
 import com.core.operation.ValueType;
-
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+
 
 /**
  * <P>1. Store</P>
@@ -74,7 +78,7 @@ public class AggQueryBindingHandler {
     }
 
 
-    public void store(String SERIAL_NUMBER, String token, List<Object> queryDtos) {
+    public void store(String SERIAL_NUMBER, String token, List<?> queryDtos) {
         Chunk chunk = convert(Objects.requireNonNull(SERIAL_NUMBER), Objects.requireNonNull(token), Objects.requireNonNull(queryDtos));
         Key key = new Key(SERIAL_NUMBER, token);
 
@@ -87,44 +91,92 @@ public class AggQueryBindingHandler {
 
 
     // SERIAL_NUMBER = 배치 고유 넘버, token = chunk token for Idempotency
-    private Chunk convert(String SERIAL_NUMBER, String token, List<Object> queryDtos) {
-        Map<String, List<ItemUnit>> map = new HashMap<>();
+    private Chunk convert(String serialNumber, String token, List<?> queryDtos) {
+        Map<String, List<ItemUnit>> ItemMap = new HashMap<>();
+        Map<String, Long> counts = new HashMap<>();
 
         for (Object queryDto : queryDtos) {
-            String groupByKeys = registry.getGroupByKeys(Objects.requireNonNull(SERIAL_NUMBER), queryDto);
-            List<ItemUnit> itemUnits = registry.extractValue(queryDto);
+            String groupByKeys = registry.getGroupByKeys(Objects.requireNonNull(serialNumber), queryDto);
 
-            if(map.containsKey(groupByKeys)) {
-                List<ItemUnit> cur = map.get(groupByKeys);
-                cur.addAll(itemUnits);
+            // record count
+            Long before = counts.getOrDefault(groupByKeys, 0L);
+            counts.put(groupByKeys, before + 1);
+
+            List<ItemUnit> itemUnits = registry.extractValue(queryDto);
+            List<ItemUnit> preCalculatedItemUnits = preCalculate(itemUnits);
+
+            if(ItemMap.containsKey(groupByKeys)) {
+                List<ItemUnit> cur = ItemMap.get(groupByKeys);
+                cur.addAll(preCalculatedItemUnits);
             }else {
-                map.put(groupByKeys, itemUnits);
+                ItemMap.put(groupByKeys, preCalculatedItemUnits);
             }
         }
-        return new Chunk(token, map);
+        return new Chunk(token, ItemMap, counts);
     }
 
 
-    private void preCalculate(List<ItemUnit> itemUnits) {
+    private List<ItemUnit> preCalculate(List<ItemUnit> itemUnits) {
 
         Map<String, List<ItemUnit>> collect = itemUnits.stream().collect(Collectors.groupingBy(ItemUnit::getFieldName));
 
-        for (String key : collect.keySet()) {
-            List<ItemUnit> units = collect.get(key);
+        List<ItemUnit> newItemUnits = new ArrayList<>();
+
+        for (var e : collect.values()) {
+
+            List<ItemUnit> units = e;
             ItemUnit base = units.get(0);
+            Operation[] operations = base.getOperations();
             ValueType valueType = base.getValueType();
+
+
+            ItemUnit.Calculation cal = null;
+
             if(valueType == ValueType.LONG) {
+                long lv = base.getLv();
+                long sum_lv = lv;
+                long max_lv = lv;
+                long min_lv = lv;
 
+                for(int i=1; i<units.size(); i++) {
+                    ItemUnit unit = units.get(i);
+                    long unit_lv = unit.getLv();
+
+                    sum_lv += unit_lv;
+                    max_lv = Math.max(max_lv, unit_lv);
+                    min_lv = Math.min(min_lv, unit_lv);
+                }
+                cal = new ItemUnit.Calculation(sum_lv, max_lv, min_lv, null, null, null);
             }else if(valueType == ValueType.DOUBLE) {
+                double dv = base.getDv();
+                double sum_dv = dv;
+                double max_dv = dv;
+                double min_dv = dv;
 
+                for(int i=1; i<units.size(); i++) {
+                    ItemUnit unit = units.get(i);
+                    double unit_dv = unit.getDv();
+
+                    sum_dv += unit_dv;
+                    max_dv = Math.max(max_dv, unit_dv);
+                    min_dv = Math.min(min_dv, unit_dv);
+                }
+                cal = new ItemUnit.Calculation(null, null, null, sum_dv, max_dv, min_dv);
             }else
-                throw new IllegalStateException("[ERROR] Unsupported ")
+                throw new IllegalStateException("[ERROR] Unsupported value type. valueType=%s".
+                        formatted(valueType));
 
 
+            ItemUnit combine = new ItemUnit(base.getFieldName(), operations, valueType, null, null, true, cal);
+            newItemUnits.add(combine);
         }
 
-
+        return newItemUnits;
     }
+
+
+
+
 
 
     public static class Key {

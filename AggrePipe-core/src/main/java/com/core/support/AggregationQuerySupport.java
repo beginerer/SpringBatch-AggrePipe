@@ -1,6 +1,9 @@
-package com.core.annotaion;
+package com.core.support;
 
 
+import com.core.AggQueryMetadata;
+import com.core.ItemSpec;
+import com.core.annotaion.*;
 import com.core.operation.ValueType;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.support.BeanDefinitionValidationException;
@@ -13,7 +16,6 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.RecordComponent;
 import java.util.*;
-
 
 
 
@@ -131,28 +133,39 @@ public class AggregationQuerySupport implements ImportAware {
 
 
 
-    private void validateGroupByKeys(Class<?> queryDto, Set<String> filedNames) {
-        AggQuery ann = queryDto.getAnnotation(AggQuery.class);
+    private void validateGroupByKeys(Class<?> queryClass, Set<String> filedNames) {
+        AggQuery ann = queryClass.getAnnotation(AggQuery.class);
         GroupByKey[] keys = ann.groupByKeys();
 
         List<String> keyNames = Arrays.stream(keys).map(GroupByKey::field).toList();
 
-
         List<String> missing = keyNames.stream().filter(k -> !filedNames.contains(k)).toList();
         if(!missing.isEmpty())
             throw new BeanDefinitionValidationException("[ERROR] %s class is missing group-by fields: %s".
-                    formatted(queryDto.getName(), missing));
+                    formatted(queryClass.getName(), missing));
 
 
         List<String> dupKeys = findDuplicates(keyNames);
         if(!dupKeys.isEmpty())
             throw new BeanDefinitionValidationException("[ERROR] %s class has duplicate group-by fields : %s".
-                    formatted(queryDto.getName(), dupKeys));
+                    formatted(queryClass.getName(), dupKeys));
 
-
-        List<String> hasAggFieldAnn = keyNames.stream().filter(keyName -> hasAggFieldAnnotation(queryDto, keyName)).toList();
+        List<String> hasAggFieldAnn = keyNames.stream().filter(keyName -> hasAggFieldAnnotation(queryClass, keyName)).toList();
         if(!hasAggFieldAnn.isEmpty())
             throw new BeanDefinitionValidationException("[ERROR] group-by fields must not declare @AggField annotation : %s");
+
+
+        if(queryClass.isRecord()) {
+            for(GroupByKey key : keys) {
+                RecordComponent rc = getGroupByField(key, queryClass.getRecordComponents());
+                validateGroupByKeyAnnotationValueType(key, rc.getType());
+            }
+        }else {
+            for(GroupByKey key : keys) {
+                Field field = getGroupByField(key, queryClass.getDeclaredFields());
+                validateGroupByKeyAnnotationValueType(key, field.getType());
+            }
+        }
     }
 
 
@@ -217,6 +230,26 @@ public class AggregationQuerySupport implements ImportAware {
         }).filter(field -> field.isAnnotationPresent(AggField.class)).toList();
     }
 
+    private RecordComponent getGroupByField(GroupByKey key, RecordComponent[] fields) {
+        String field = key.field();
+        for(RecordComponent rc : fields) {
+            if(rc.getName().equals(field))
+                return rc;
+        }
+        throw new IllegalStateException("[ERROR] %s class does not have field. field=%s".
+                formatted(field));
+    }
+
+    private Field getGroupByField(GroupByKey key, Field[] fields) {
+        String field = key.field();
+        for(Field f : fields) {
+            if(f.getName().equals(field))
+                return f;
+        }
+        throw new IllegalStateException("[ERROR] %s class does not have field. field=%s".
+                formatted(field));
+    }
+
 
     private List<String> findDuplicates(List<String> items) {
         Set<String> seen = new HashSet<>();
@@ -247,6 +280,24 @@ public class AggregationQuerySupport implements ImportAware {
     private void validateAggFieldAnnotationValueType(AggField aggField, Class<?> fieldRawType) {
         Class<?> fieldType = ClassUtils.resolvePrimitiveIfNecessary(fieldRawType);
         ValueType valueType = aggField.type();
+
+        if(valueType == ValueType.LONG) {
+            if(fieldType != Long.class)
+                throw new BeanDefinitionValidationException("[ERROR] Unsupported valueType. valueType=%s, fieldType=%s".
+                        formatted(valueType.name(), fieldType.getName()));
+        }else if(valueType == ValueType.DOUBLE) {
+            if(fieldType != Double.class)
+                throw new BeanDefinitionValidationException("[ERROR] Unsupported valueType. valueType=%s, fieldType=%s".
+                        formatted(valueType.name(), fieldType.getName()));
+        } else {
+            throw new BeanDefinitionValidationException("[ERROR] Unsupported valueType. valueType=%s, fieldType=%s".
+                    formatted(valueType.name(), fieldType.getName()));
+        }
+    }
+
+    private void validateGroupByKeyAnnotationValueType(GroupByKey groupByKey, Class<?> fieldRawType) {
+        Class<?> fieldType = ClassUtils.resolvePrimitiveIfNecessary(fieldRawType);
+        ValueType valueType = groupByKey.type();
 
         if(valueType == ValueType.LONG) {
             if(fieldType != Long.class)

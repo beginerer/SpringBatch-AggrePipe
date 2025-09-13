@@ -1,7 +1,7 @@
 package com.core.operation;
 
-import com.core.annotaion.ChunkUpdatePayload;
-import com.core.annotaion.Jackson;
+import com.core.ChunkUpdatePayload;
+import com.core.Jackson;
 import io.lettuce.core.ScriptOutputType;
 
 import java.util.Arrays;
@@ -28,22 +28,19 @@ public class LuaScript implements LuaOperation<String, String> {
 
     private final ScriptOutputType scriptOutputType;
 
-    private final boolean strictMode;
-
     public static final int DEFAULT_TTL = 86400;
 
 
 
 
 
-    public LuaScript(String name, String SERIAL_NUMBER, String script, String idemKey, int ttl, boolean strictMode) {
+    public LuaScript(String name, String SERIAL_NUMBER, String script, String idemKey, int ttl) {
         this.name = Objects.requireNonNull(name, "name must not be null");
         this.SERIAL_NUMBER = Objects.requireNonNull(SERIAL_NUMBER);
         this.script = Objects.requireNonNull(script, "script must not be null");
         Objects.requireNonNull(idemKey,"setKey must not be null");
         this.scriptOutputType = ScriptOutputType.STATUS;
         this.keys = new String[]{idemKey};
-        this.strictMode = strictMode;
         this.ttl = ttl;
     }
 
@@ -95,26 +92,16 @@ public class LuaScript implements LuaOperation<String, String> {
         return ttl;
     }
 
-    @Override
-    public boolean isStrictMode() {
-        return strictMode;
-    }
-
-
-
-
-
-
 
     @Override
     public String toString() {
         return "LuaScript{" +
                 "name='" + name + '\'' +
+                ", SERIAL_NUMBER='" + SERIAL_NUMBER + '\'' +
                 ", script='" + script + '\'' +
-                ", AggregateOutputTYpe=" + aggregateOutputType +
-                ", scriptOutputType=" + aggregateOutputType.getScriptOutputType() +
                 ", keys=" + Arrays.toString(keys) +
+                ", ttl=" + ttl +
+                ", scriptOutputType=" + scriptOutputType +
                 '}';
     }
-
 }

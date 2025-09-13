@@ -1,5 +1,6 @@
 package com.core.annotaion;
 
+import com.core.support.AggregationQuerySupport;
 import org.springframework.context.annotation.Import;
 import java.lang.annotation.*;
 

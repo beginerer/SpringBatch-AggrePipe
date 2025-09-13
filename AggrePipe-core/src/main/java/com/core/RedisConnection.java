@@ -5,18 +5,13 @@ import com.core.config.TimeoutConfig;
 import com.core.exception.LuaScriptInterruptedException;
 import com.core.exception.LuaScriptNonRetryableException;
 import com.core.exception.LuaScriptTimeoutException;
-import com.core.exception.LuaScriptInvalidOutputException;
 import com.core.operation.*;
 import com.core.exception.ConnectionClosedException;
-import com.core.result.RedisDoubleResultSet;
-import com.core.result.RedisLongResultSet;
-import com.core.result.ResultSetFactory;
-import io.lettuce.core.ScriptOutputType;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.RedisAsyncCommands;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import java.util.List;
+
 import java.util.concurrent.*;
 
 
@@ -55,7 +50,7 @@ public class RedisConnection  {
 
 
 
-    public RedisLongResultSet evalAsLong(LuaOperation<String, String> op, String argv) {
+    public RedisResultSet eval(LuaOperation<String, String> op, ChunkUpdatePayload payload) {
 
         final var conn = connection;
 
@@ -65,23 +60,18 @@ public class RedisConnection  {
         if(op == null)
             throw new IllegalArgumentException("[ERROR] LuaOperation is null");
 
-        final boolean safetyMode = op.isStrictMode();
-
-
         try {
-            String[] argv = op.inputData(data);
+            String[] argv = op.inputData(payload);
             var response = async.eval(op.getLuaScript(), op.getScriptOutputType(), op.getKeys(), argv).get(timeAmount, timeUnit);
 
             if(response == null)
                 throw new LuaScriptNonRetryableException("[ERROR] result is null");
 
-            if(safetyMode && !(response instanceof List<?>))
-                throw new LuaScriptInvalidOutputException("[ERROR] type mismatch: expected List<String> but got %s".
-                        formatted(response));
+            if (response.equals("OK"))
+                return new RedisResultSet(payload,true);
+            else
+                return new RedisResultSet(payload,false);
 
-            List<String> result = (List<String>) response;
-
-            return ResultSetFactory.buildLong(opIndex, result);
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -91,15 +81,11 @@ public class RedisConnection  {
         } catch (TimeoutException e) {
             throw new LuaScriptTimeoutException("[ERROR] SCRIPT EVAL timed out (name =%s, timeout=%d %s)".
                     formatted(op.getName(), timeAmount, timeUnit), e);
-        }catch (ClassCastException e) {
-            throw new LuaScriptInvalidOutputException("[ERROR] SCRIPT EVAL type mismatch",e);
         }
     }
 
 
-
-
-    public RedisLongResultSet evalShaAsLong(DigestLuaOperation<String, String> op, String... data) {
+    public RedisResultSet evalsha(DigestLuaOperation<String, String> op, ChunkUpdatePayload payload) {
 
         final var conn = connection;
 
@@ -109,95 +95,31 @@ public class RedisConnection  {
         if(op == null)
             throw new IllegalArgumentException("[ERROR] LuaOperation is null");
 
-        boolean safetyMode = op.isStrictMode();
-
-        if (safetyMode) {
-            if(op.getAggregateOutputType() != AggregateOutputType.LONG || op.getScriptOutputType() != ScriptOutputType.INTEGER)
-                throw new IllegalStateException("[ERROR] unsupported output type. AggregateOutputType=%s, ScriptOutputType=%s, required= %s %s".
-                        formatted(op.getAggregateOutputType(), op.getScriptOutputType(), AggregateOutputType.LONG, ScriptOutputType.INTEGER));
-        }
-
         try {
-            String[] argv = op.inputData(data);
-            var response = async.evalsha(op.getDigestScript(), op.getScriptOutputType(), op.getKeys(), argv).get(timeAmount,timeUnit);
+            String[] argv = op.inputData(payload);
+            var response = async.evalsha(op.getDigestScript(), op.getScriptOutputType(), op.getKeys(), argv).get(timeAmount, timeUnit);
 
             if(response == null)
                 throw new LuaScriptNonRetryableException("[ERROR] result is null");
 
-            if(safetyMode && !(response instanceof List<?>))
-                throw new LuaScriptInvalidOutputException("[ERROR] type mismatch: expected List<String> but got %s".
-                        formatted(response));
+            if (response.equals("OK"))
+                return new RedisResultSet(payload,true);
+            else
+                return new RedisResultSet(payload,false);
 
-            List<String> result = (List<String>) response;
-            int[] opIndex = op.opIndex();
-
-            return ResultSetFactory.buildLong(opIndex, result);
-
-        } catch (ExecutionException e) {
-            throw new LuaScriptNonRetryableException("[ERROR] SCRIPT EVALSHA failed (name=%s)".
-                    formatted(op.getName()), e);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new LuaScriptInterruptedException("[ERROR] SCRIPT EVALSHA interrupted (name=%s)".
-                    formatted(op.getName()), e);
-        } catch (TimeoutException e) {
-            throw new LuaScriptTimeoutException("[ERROR] SCRIPT EVALSHA timed out (name=%s, timed=%d %s)".
-                    formatted(op.getName(), timeAmount, timeUnit), e);
-        } catch (ClassCastException e) {
-            throw new LuaScriptInvalidOutputException("[ERROR] SCRIPT EVALSHA type mismatch", e);
-        }
-    }
-
-
-    public RedisDoubleResultSet evalAsDouble(LuaOperation<String, String> op, String... data) {
-
-        final var conn = connection;
-
-        if(conn == null || !conn.isOpen())
-            throw new ConnectionClosedException("[ERROR] connection is closed");
-
-        if(op == null)
-            throw new IllegalArgumentException("[ERROR] LuaOperation is null");
-
-        final boolean safetyMode = op.isStrictMode();
-
-        if(safetyMode) {
-            if(op.getAggregateOutputType() != AggregateOutputType.DOUBLE || op.getScriptOutputType() != ScriptOutputType.MULTI)
-                throw new IllegalArgumentException("[ERROR] unsupported output type. AggregateOutputType=%s, ScriptOutputType=%s, required=%s %s".
-                        formatted(op.getAggregateOutputType(), op.getScriptOutputType(), AggregateOutputType.DOUBLE, ScriptOutputType.MULTI));
-        }
-
-        try {
-            String[] argv = op.inputData(data);
-
-            var response = async.evalsha(op.getLuaScript(), op.getScriptOutputType(), op.getKeys(), argv).get(timeAmount, timeUnit);
-
-            if(response == null)
-                throw new LuaScriptNonRetryableException("[ERROR] result is null");
-
-            if(safetyMode && !(response instanceof List<?>))
-                throw new LuaScriptInvalidOutputException("[ERROR] type mismatch: expected List<String> but got %s".
-                        formatted(response));
-
-            List<String> result = (List<String>) response;
-            int[] opIndex = op.opIndex();
-
-            return ResultSetFactory.buildDouble(opIndex, result);
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new LuaScriptInterruptedException("[ERROR] SCRIPT EVAL interrupted (name=%s)".
-                    formatted(op.getName()), e);
+            throw new LuaScriptInterruptedException("[ERROR] SCRIPT EVAL interrupted (name=%s)".formatted(op.getName()), e);
         } catch (ExecutionException e) {
-            throw new LuaScriptNonRetryableException("[ERROR] SCRIPT EVAL failed (name=%s)".
-                    formatted(op.getName()), e);
+            throw new LuaScriptNonRetryableException("[ERROR] SCRIPT EVAL failed (name=%s)".formatted(op.getName()), e);
         } catch (TimeoutException e) {
             throw new LuaScriptTimeoutException("[ERROR] SCRIPT EVAL timed out (name =%s, timeout=%d %s)".
                     formatted(op.getName(), timeAmount, timeUnit), e);
-        }catch (ClassCastException e) {
-            throw new LuaScriptInvalidOutputException("[ERROR] SCRIPT EVAL type mismatch",e);
         }
     }
+
+
 
 
 

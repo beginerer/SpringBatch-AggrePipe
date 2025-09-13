@@ -1,29 +1,34 @@
 package com.core.operation;
 
+import com.core.ChunkUpdatePayload;
+import com.core.Jackson;
 import io.lettuce.core.ScriptOutputType;
 
-import java.util.Arrays;
-import java.util.Objects;
 
 
+/**
+ * <h3>Must match the Spring Batch job lifecycle.</h3>
+ * <p>key : KEYS[1]=idempKey</p>
+ * <p>argv: ARGV[1]= ttl, ARGV[2]=payLoad</p>
+ * */
 public class DigestLuaScript implements DigestLuaOperation<String, String> {
 
 
     private final String name;
 
-    private final int[] opIndex;
+    private final String SERIAL_NUMBER;
 
     private final String digestScript;
 
     private final String script;
 
-    private final AggregateOutputType aggregateOutputType;
-
     private final String[] keys;
 
     private final int ttl;
 
-    private final boolean safetyMode;
+    private final ScriptOutputType scriptOutputType;
+
+    public static final int DEFAULT_TTL = 86400;
 
 
 
@@ -31,39 +36,34 @@ public class DigestLuaScript implements DigestLuaOperation<String, String> {
         if(digestScript == null || digestScript.isEmpty())
             throw new IllegalArgumentException("[ERROR] digestScript is null or empty");
         this.name = spec.getName();
-        this.opIndex = spec.opIndex();
+        this.SERIAL_NUMBER = spec.getSerialNumber();
         this.digestScript = digestScript;
         this.script = spec.getLuaScript();
-        this.aggregateOutputType = spec.getAggregateOutputType();
         this.keys = spec.getKeys();
         this.ttl = spec.getTtl();
-        this.safetyMode = spec.isStrictMode();
-    }
-
-
-
-    @Override
-    public String[] inputData(String... data) {
-        if (data == null || data.length != 2) {
-            throw new IllegalArgumentException(
-                    "[ERROR] ARGV expects exactly 2 elements: [requestId, value], but got " + Arrays.toString(data)
-            );
-        }
-        String requestId = Objects.requireNonNull(data[0], "requestId must not be null");
-        String value = Objects.requireNonNull(data[1], "value must not be null");
-        return new String[]{requestId, value, String.valueOf(ttl)};
+        this.scriptOutputType = spec.getScriptOutputType();
     }
 
 
     @Override
-    public int[] opIndex() {
-        return opIndex;
-    }
+    public String[] inputData(ChunkUpdatePayload payload) {
+        if(!payload.getScriptSerialNumber().equals(SERIAL_NUMBER))
+            throw new IllegalArgumentException("[ERROR] Unsupported payLoad. required=%s current=%s".
+                    formatted(SERIAL_NUMBER, payload.getScriptSerialNumber()));
 
+        String argv = Jackson.convetToString(payload);
+
+        return new String[]{String.valueOf(ttl), argv};
+    }
 
     @Override
     public String getName() {
         return name;
+    }
+
+    @Override
+    public String getSerialNumber() {
+        return SERIAL_NUMBER;
     }
 
     @Override
@@ -77,14 +77,10 @@ public class DigestLuaScript implements DigestLuaOperation<String, String> {
     }
 
     @Override
-    public AggregateOutputType getAggregateOutputType() {
-        return aggregateOutputType;
+    public ScriptOutputType getScriptOutputType() {
+        return scriptOutputType;
     }
 
-    @Override
-    public ScriptOutputType getScriptOutputType() {
-        return aggregateOutputType.getScriptOutputType();
-    }
 
     @Override
     public String[] getKeys() {
@@ -97,20 +93,4 @@ public class DigestLuaScript implements DigestLuaOperation<String, String> {
         return ttl;
     }
 
-    @Override
-    public boolean isStrictMode() {
-        return safetyMode;
-    }
-
-
-    @Override
-    public String toString() {
-        return "DigestLuaScript{" +
-                "name='" + name + '\'' +
-                ", script='" + script + '\'' +
-                ", AggregateOutputTYpe=" + aggregateOutputType +
-                ", scriptOutputType=" + aggregateOutputType.getScriptOutputType() +
-                ", keys=" + Arrays.toString(keys) +
-                '}';
-    }
 }

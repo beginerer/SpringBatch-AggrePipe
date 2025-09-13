@@ -3,31 +3,28 @@ package com.core.operation;
 public enum Operation {
 
 
-    SUM(0, 1 << 0),
+    SUM("SUM:"),
 
-    COUNT(1, 1 << 1),
+    MAX("MAX:"),
 
-    MAX(2, 1 << 2),
-
-    MIN(3, 1 << 3);
+    MIN("MIN:");
 
 
-    private final int index;
+    private String prefix;
 
-    private final int mask;
-
-
-    Operation(int index, int mask) {
-        this.index = index;
-        this.mask = mask;
+    Operation(String prefix) {
+        this.prefix = prefix;
     }
 
 
-    public int getIndex() {
-        return index;
+    public static  String resolveFieldName(Operation op, String fieldName) {
+        return op.prefix + fieldName;
     }
 
-    public int getMask() {
-        return mask;
+    public static  String resolveCountFieldName() {
+        return "_meta:count";
     }
+
+
+
 }

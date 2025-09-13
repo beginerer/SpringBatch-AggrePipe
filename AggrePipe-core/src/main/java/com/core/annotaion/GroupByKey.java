@@ -1,5 +1,7 @@
 package com.core.annotaion;
 
+import com.core.operation.ValueType;
+
 import java.lang.annotation.Retention;
 import java.lang.annotation.Target;
 import static java.lang.annotation.RetentionPolicy.RUNTIME;
@@ -10,5 +12,7 @@ public @interface GroupByKey {
 
 
     String field();
+
+    ValueType type();
 
 }

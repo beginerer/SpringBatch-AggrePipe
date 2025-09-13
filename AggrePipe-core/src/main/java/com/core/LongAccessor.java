@@ -1,4 +1,4 @@
-package com.core.annotaion;
+package com.core;
 
 @FunctionalInterface
 public interface LongAccessor {

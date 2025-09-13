@@ -12,7 +12,7 @@ import java.lang.annotation.*;
 public @interface AggField {
 
 
-    Operation op();
+    Operation[] op();
 
     ValueType type();
 

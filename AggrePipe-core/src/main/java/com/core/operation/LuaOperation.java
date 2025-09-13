@@ -1,6 +1,6 @@
 package com.core.operation;
 
-import com.core.annotaion.ChunkUpdatePayload;
+import com.core.ChunkUpdatePayload;
 import io.lettuce.core.ScriptOutputType;
 
 public interface LuaOperation <T, V> {
@@ -20,5 +20,4 @@ public interface LuaOperation <T, V> {
 
     int getTtl();
 
-    boolean isStrictMode();
 }

@@ -9,41 +9,56 @@ import com.core.operation.ValueType;
 
 import java.time.LocalDateTime;
 
-@AggQuery(groupByKeys = @GroupByKey(field = "userId"))
+
+
+@AggQuery(groupByKeys = {
+        @GroupByKey(field = "userId", type = ValueType.LONG),
+        @GroupByKey(field = "orderId", type = ValueType.LONG)}
+)
 public class QueryDto {
 
 
     private Long userId;
 
-    @AggField(op = Operation.COUNT, type = ValueType.LONG)
-    private Long orderCount;
+    private Long orderId;
 
-    @AggField(op = Operation.SUM, type = ValueType.DOUBLE)
-    private Double purchaseAmount;
+    @AggField(op = {Operation.SUM, Operation.MAX, Operation.MIN}, type = ValueType.DOUBLE)
+    private Double unitPrice;
+
+    @AggField(op = {Operation.MAX, Operation.MIN}, type = ValueType.LONG)
+    private Long quantity;
 
     private LocalDateTime orderAt;
 
 
-    public QueryDto(Long userId, Long orderCount, Double purchaseAmount, LocalDateTime orderAt) {
+    public QueryDto(Long userId, Long orderId, Double unitPrice, Long quantity, LocalDateTime orderAt) {
         this.userId = userId;
-        this.orderCount = orderCount;
-        this.purchaseAmount = purchaseAmount;
+        this.orderId = orderId;
+        this.unitPrice = unitPrice;
+        this.quantity = quantity;
         this.orderAt = orderAt;
+    }
+
+
+    public Long getOrderId() {
+        return orderId;
     }
 
     public Long getUserId() {
         return userId;
     }
 
-    public Long getOrderCount() {
-        return orderCount;
+    public Double getUnitPrice() {
+        return unitPrice;
     }
 
-    public Double getPurchaseAmount() {
-        return purchaseAmount;
+    public Long getQuantity() {
+        return quantity;
     }
 
     public LocalDateTime getOrderAt() {
         return orderAt;
     }
+
+
 }
