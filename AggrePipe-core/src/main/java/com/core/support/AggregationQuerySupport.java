@@ -3,6 +3,8 @@ package com.core.support;
 
 import com.core.AggQueryMetadata;
 import com.core.ItemSpec;
+import com.core.ReadItemSpec;
+import com.core.ReadQueryMetadata;
 import com.core.annotaion.*;
 import com.core.operation.Operation;
 import com.core.operation.ValueType;
@@ -28,7 +30,7 @@ public class AggregationQuerySupport implements ImportAware {
 
     private Map<Class<?>, AggQueryMetadata> aggQueryMetadataMap;
 
-    private Map<Class<?>, AggQueryMetadata> readQueryMetadataMap;
+    private Map<Class<?>, ReadQueryMetadata> readQueryMetadataMap;
 
 
 
@@ -63,7 +65,7 @@ public class AggregationQuerySupport implements ImportAware {
 
     @Bean
     public AggQueryRegistry aggQueryRegistry() {
-        return new AggQueryRegistry(aggQueryMetadataMap);
+        return new AggQueryRegistry(aggQueryMetadataMap, readQueryMetadataMap);
     }
 
 
@@ -92,15 +94,15 @@ public class AggregationQuerySupport implements ImportAware {
                 Set<String> fieldNames = getDeclaredFields(dto);
 
                 validateAggQueryAnnotation(dto, fieldNames);
-                AggQueryMetadata aggQueryMetadata = buildMetaData(dto);
+                AggQueryMetadata aggQueryMetadata = buildAggQueryMetaData(dto);
                 out.put(dto, aggQueryMetadata);
             }
         }
         return out;
     }
 
-    private Map<Class<?>, AggQueryMetadata> scanAndBuildReadMetadata(List<String> bases) {
-        var out = new LinkedHashMap<Class<?>, AggQueryMetadata>();
+    private Map<Class<?>, ReadQueryMetadata> scanAndBuildReadMetadata(List<String> bases) {
+        var out = new LinkedHashMap<Class<?>, ReadQueryMetadata>();
         var scanner = new ClassPathScanningCandidateComponentProvider(false);
         scanner.addIncludeFilter(new AnnotationTypeFilter(ReadQuery.class, true));
         ClassLoader cl = Thread.currentThread().getContextClassLoader();
@@ -117,14 +119,16 @@ public class AggregationQuerySupport implements ImportAware {
                 Set<String> fieldNames = getDeclaredFields(dto);
 
                 validateReadQueryAnnotation(dto, fieldNames);
-
+                ReadQueryMetadata readQueryMetadata = buildReadQueryMetaData(dto);
+                out.put(dto, readQueryMetadata);
             }
         }
+        return out;
     }
 
 
 
-    private AggQueryMetadata buildMetaData(Class<?> clazz) {
+    private AggQueryMetadata buildAggQueryMetaData(Class<?> clazz) {
         if(clazz.isRecord()) {
             List<RecordComponent> aggFields = getAggFields(clazz.getRecordComponents());
             List<ItemSpec> itemSpecs = new ArrayList<>();
@@ -136,7 +140,7 @@ public class AggregationQuerySupport implements ImportAware {
             }
             AggQuery ann = clazz.getDeclaredAnnotation(AggQuery.class);
 
-            return new AggQueryMetadata(clazz.getName(), ann.groupByKeys(), true, itemSpecs);
+            return new AggQueryMetadata(clazz.getSimpleName(), ann.groupByKeys(), true, itemSpecs);
         }else {
             List<Field> aggFields = getAggFields(clazz.getDeclaredFields());
             List<ItemSpec> itemSpecs = new ArrayList<>();
@@ -147,7 +151,32 @@ public class AggregationQuerySupport implements ImportAware {
                 itemSpecs.add(itemSpec);
             }
             AggQuery ann = clazz.getDeclaredAnnotation(AggQuery.class);
-            return new AggQueryMetadata(clazz.getName(), ann.groupByKeys(), false, itemSpecs);
+            return new AggQueryMetadata(clazz.getSimpleName(), ann.groupByKeys(), false, itemSpecs);
+        }
+    }
+    public ReadQueryMetadata buildReadQueryMetaData(Class<?> clazz) {
+        if(clazz.isRecord()) {
+            List<RecordComponent> readFields = getReadFields(clazz.getRecordComponents());
+            List<ReadItemSpec> itemSpecs = new ArrayList<>();
+
+            for(RecordComponent readField : readFields) {
+                ReadAggField annotation = readField.getDeclaredAnnotation(ReadAggField.class);
+                ReadItemSpec itemSpec = new ReadItemSpec(annotation.originalFieldName(), readField.getName(), annotation.op(), annotation.type());
+                itemSpecs.add(itemSpec);
+            }
+            ReadQuery ann = clazz.getDeclaredAnnotation(ReadQuery.class);
+            return new ReadQueryMetadata(clazz.getSimpleName(), ann.groupByKeys(), true, itemSpecs);
+        }else {
+            List<Field> readFields = getReadFields(clazz.getDeclaredFields());
+            List<ReadItemSpec> itemSpecs = new ArrayList<>();
+
+            for (Field readField : readFields) {
+                ReadAggField annotation = readField.getDeclaredAnnotation(ReadAggField.class);
+                ReadItemSpec itemSpec = new ReadItemSpec(annotation.originalFieldName(), readField.getName(), annotation.op(), annotation.type());
+                itemSpecs.add(itemSpec);
+            }
+            ReadQuery ann = clazz.getDeclaredAnnotation(ReadQuery.class);
+            return new ReadQueryMetadata(clazz.getSimpleName(), ann.groupByKeys(), false, itemSpecs);
         }
     }
 
@@ -472,12 +501,12 @@ public class AggregationQuerySupport implements ImportAware {
         }
     }
 
-    private void validateReadFieldAnnotationMetadata(ReadAggField readAggField, RecordComponent[] recordComponents) {
+    private void validateReadFieldAnnotationMetadata(ReadAggField readAggField, RecordComponent[] originalRecordComponents) {
         String originalFieldName = readAggField.originalFieldName();
         Operation operation = readAggField.op();
         ValueType valueType = readAggField.type();
 
-        RecordComponent recordComponent = Arrays.stream(recordComponents).filter(rc -> rc.getName().equals(originalFieldName)).findAny()
+        RecordComponent recordComponent = Arrays.stream(originalRecordComponents).filter(rc -> rc.getName().equals(originalFieldName)).findAny()
                 .orElseThrow(() -> new BeanDefinitionValidationException("[ERROR] %s fieldName doesn't exist in AggQuery class".
                         formatted(originalFieldName)));
 
@@ -496,12 +525,13 @@ public class AggregationQuerySupport implements ImportAware {
                 .orElseThrow(() -> new BeanDefinitionValidationException("[ERROR] %s field doest not support %s operation. support operation=%s".
                         formatted(operation, aggFieldOperations)));
     }
-    private void validateReadFieldAnnotationMetadata(ReadAggField readAggField, Field[] fields) {
+
+    private void validateReadFieldAnnotationMetadata(ReadAggField readAggField, Field[] originalFields) {
         String originalFieldName = readAggField.originalFieldName();
         Operation operation = readAggField.op();
         ValueType valueType = readAggField.type();
 
-        Field field = Arrays.stream(fields).filter(f -> f.getName().equals(originalFieldName)).findAny()
+        Field field = Arrays.stream(originalFields).filter(f -> f.getName().equals(originalFieldName)).findAny()
                 .orElseThrow(() -> new BeanDefinitionValidationException("[ERROR] %s fieldName doesn't exist in AggQuery class".
                         formatted(originalFieldName)));
 
@@ -520,6 +550,5 @@ public class AggregationQuerySupport implements ImportAware {
                 .orElseThrow(() -> new BeanDefinitionValidationException("[ERROR] %s field doest not support %s operation. support operation=%s".
                         formatted(operation, aggFieldOperations)));
     }
-
 
 }

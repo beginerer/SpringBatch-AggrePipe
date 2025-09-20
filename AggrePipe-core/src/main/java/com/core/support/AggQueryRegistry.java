@@ -22,16 +22,16 @@ public class AggQueryRegistry {
 
     private final Map<Class<?>, List<QueryKey>> aggQueryGroupByKeyData;
 
-    private final Map<QueryKey, ItemSpec> keyItemMap;
+    private final Map<QueryKey, ItemSpec> aggKeyItemMap;
 
     // read query
-    private final Map<Class<?>, AggQueryMetadata> readQueryMetadataMap;
+    private final Map<Class<?>, ReadQueryMetadata> readQueryMetadataMap;
 
     private final Map<Class<?>, List<QueryKey>> readQueryKeyData;
 
+    private final Map<Class<?>, List<QueryKey>> readQueryGroupByKeyData;
 
-
-
+    private final Map<QueryKey, ReadItemSpec> readKeyItemMap;
 
 
 
@@ -40,17 +40,93 @@ public class AggQueryRegistry {
 
 
 
-    public AggQueryRegistry(Map<Class<?>, AggQueryMetadata> aggQueryMetadataMap) {
+    public AggQueryRegistry(Map<Class<?>, AggQueryMetadata> aggQueryMetadataMap, Map<Class<?>, ReadQueryMetadata> readQueryMetadataMap) {
         this.aggQueryMetadataMap = aggQueryMetadataMap;
-        this.keyItemMap = new HashMap<>();
+        this.readQueryMetadataMap = readQueryMetadataMap;
+        this.aggKeyItemMap = new HashMap<>();
         this.aggQueryGroupByKeyData = new HashMap<>();
-        this.aggQueryKeyData = buildKeyData();
-        this.CACHE = buildCacheData();
+        this.aggQueryKeyData = buildAggKeyData();
+        this.readKeyItemMap = new HashMap<>();
+        this.readQueryGroupByKeyData = new HashMap<>();
+        this.readQueryKeyData = buildReadKeyData();
+        this.CACHE = buildAggCacheData();
+        buildReadCacheData();
     }
 
 
 
-    private Map<Class<?>, List<QueryKey>> buildKeyData() {
+    public List<ItemUnit> extractValue(Object queryDto) {
+        Class<?> queryClass = queryDto.getClass();
+
+        List<QueryKey> queryKeys = aggQueryKeyData.get(queryClass);
+        if (queryKeys == null || queryKeys.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "[ERROR] %s is not included in MetaData".formatted(queryClass.getName()));
+        }
+
+        List<ItemUnit> itemUnits = new ArrayList<>();
+
+        for (QueryKey queryKey : queryKeys) {
+            if(queryKey.getDataType() == Long.class) {
+                LongAccessor longAcc = forLongWrite(queryKey);
+                long value = longAcc.get(queryDto);
+
+                ItemSpec itemSpec = aggKeyItemMap.get(queryKey);
+                ItemUnit itemUnit = new ItemUnit(itemSpec.getFieldName(), itemSpec.getOp(), itemSpec.getValueType(), value, null);
+                itemUnits.add(itemUnit);
+
+            }else if(queryKey.getDataType() == Double.class) {
+                DoubleAccessor doubleAcc = forDoubleWrite(queryKey);
+                double value = doubleAcc.get(queryDto);
+
+                ItemSpec itemSpec = aggKeyItemMap.get(queryKey);
+                ItemUnit itemUnit = new ItemUnit(itemSpec.getFieldName(), itemSpec.getOp(), itemSpec.getValueType(), null, value);
+                itemUnits.add(itemUnit);
+            }else
+                throw new IllegalArgumentException("[ERROR] Unsupported data type. dataType=%s".formatted(queryKey.getDataType()));
+        }
+
+        return itemUnits;
+    }
+
+
+    public Object injectValue(Object queryDto, Map<QueryKey, String> valueMap){
+        Class<?> queryClass = queryDto.getClass();
+
+
+        for (var e : valueMap.entrySet()) {
+
+            QueryKey key = e.getKey();
+            String value = Objects.requireNonNull(e.getValue());
+
+            if(queryClass != key.getQueryClass())
+                throw new IllegalArgumentException("[ERROR] queryDto's class and QueryKey's class does not match. queryDto class=%s, queryKey class=%s".
+                        formatted(queryClass, key.getQueryClass()));
+
+            try {
+                if(key.getDataType() == long.class || key.getDataType() == Long.class) {
+                    long v = Long.parseLong(value);
+                    LongSetter longSetter = forLongSet(key);
+                    longSetter.set(queryDto, v);
+                }else if(key.getDataType() == double.class || key.getDataType() == Double.class){
+                    Double v = Double.parseDouble(value);
+                    DoubleSetter doubleSetter = forDoubleSet(key);
+                    doubleSetter.set(queryDto, v);
+                }else
+                    throw new IllegalArgumentException("[ERROR] Unsupported Data type. dataType=%s".
+                            formatted(key.getDataType()));
+            }catch (NumberFormatException ex) {
+                throw new IllegalArgumentException("[ERROR] Cannot parse value %s for field %s".formatted(value, key.getFieldName()));
+            }
+
+        }
+        return queryDto;
+    }
+
+
+
+
+    private Map<Class<?>, List<QueryKey>> buildAggKeyData() {
         Map<Class<?>, List<QueryKey>> map = new HashMap<>();
 
         for (Class<?> queryClass : aggQueryMetadataMap.keySet()) {
@@ -78,11 +154,53 @@ public class AggQueryRegistry {
                 if(item.getValueType() == ValueType.LONG) {
                     QueryKey queryKey = new QueryKey(queryClass, item.getFieldName(), long.class);
                     queryKeys.add(queryKey);
-                    keyItemMap.put(queryKey, item);
+                    aggKeyItemMap.put(queryKey, item);
                 } else if(item.getValueType() == ValueType.DOUBLE) {
                     QueryKey queryKey = new QueryKey(queryClass, item.getFieldName(), double.class);
                     queryKeys.add(queryKey);
-                    keyItemMap.put(queryKey, item);
+                    aggKeyItemMap.put(queryKey, item);
+                }else
+                    throw new IllegalArgumentException("[ERROR] Unsupported value type. valueType=%s".
+                            formatted(item.getValueType()));
+            }
+            map.put(queryClass, queryKeys);
+        }
+        return map;
+    }
+
+    private Map<Class<?>, List<QueryKey>> buildReadKeyData() {
+        Map<Class<?>, List<QueryKey>> map = new HashMap<>();
+
+        for(Class<?> queryClass : readQueryMetadataMap.keySet()) {
+            List<QueryKey> queryKeys = new ArrayList<>();
+            List<QueryKey> groupByKeys = new ArrayList<>();
+            ReadQueryMetadata metadata = readQueryMetadataMap.get(queryClass);
+
+            for(GroupByKey key : metadata.getGroupByKeys()) {
+                String field = key.field();
+                ValueType valueType = key.type();
+
+                if(valueType == ValueType.LONG) {
+                    QueryKey queryKey = new QueryKey(queryClass, field, long.class);
+                    groupByKeys.add(queryKey);
+                }else if(valueType == ValueType.DOUBLE) {
+                    QueryKey queryKey = new QueryKey(queryClass, field, double.class);
+                    groupByKeys.add(queryKey);
+                }else
+                    throw new IllegalArgumentException("[ERROR] Unsupported value type. valueType=%s".
+                            formatted(valueType));
+            }
+            readQueryGroupByKeyData.put(queryClass, groupByKeys);
+
+            for (ReadItemSpec item : metadata.getItems()) {
+                if(item.getValueType() == ValueType.LONG) {
+                    QueryKey queryKey = new QueryKey(queryClass, item.getFieldName(), long.class);
+                    queryKeys.add(queryKey);
+                    readKeyItemMap.put(queryKey, item);
+                } else if(item.getValueType() == ValueType.DOUBLE) {
+                    QueryKey queryKey = new QueryKey(queryClass, item.getFieldName(), double.class);
+                    queryKeys.add(queryKey);
+                    readKeyItemMap.put(queryKey, item);
                 }else
                     throw new IllegalArgumentException("[ERROR] Unsupported value type. valueType=%s".
                             formatted(item.getValueType()));
@@ -93,12 +211,14 @@ public class AggQueryRegistry {
     }
 
 
-    private ConcurrentHashMap<QueryKey, Object> buildCacheData() {
+
+
+    private ConcurrentHashMap<QueryKey, Object> buildAggCacheData() {
         ConcurrentHashMap<QueryKey,Object> cacheMap = new ConcurrentHashMap<>();
 
         for (Class<?> queryClass : aggQueryKeyData.keySet()) {
             for (QueryKey queryKey : aggQueryKeyData.get(queryClass)) {
-                Object result = cacheMap.putIfAbsent(queryKey, createLambda(queryKey.getQueryClass(), queryKey.getFieldName(), queryKey.getDataType()));
+                Object result = cacheMap.putIfAbsent(queryKey, createWriteLambda(queryKey.getQueryClass(), queryKey.getFieldName(), queryKey.getDataType()));
 
                 if(result != null)
                     throw new IllegalStateException("[ERROR] duplicate key: " + queryKey);
@@ -107,7 +227,7 @@ public class AggQueryRegistry {
 
         for (Class<?> queryClass : aggQueryGroupByKeyData.keySet()) {
             for (QueryKey queryKey : aggQueryGroupByKeyData.get(queryClass)) {
-                Object result = cacheMap.putIfAbsent(queryKey, createLambda(queryKey.getQueryClass(), queryKey.getFieldName(), queryKey.getDataType()));
+                Object result = cacheMap.putIfAbsent(queryKey, createWriteLambda(queryKey.getQueryClass(), queryKey.getFieldName(), queryKey.getDataType()));
 
                 if(result != null)
                     throw new IllegalStateException("[ERROR] duplicate key: " + queryKey);
@@ -116,9 +236,30 @@ public class AggQueryRegistry {
         return cacheMap;
     }
 
+    private void buildReadCacheData() {
+
+        for(Class<?> queryClass : readQueryKeyData.keySet()) {
+            for (QueryKey queryKey : readQueryKeyData.get(queryClass)) {
+                Object result = CACHE.putIfAbsent(queryKey, createReadLambda(queryKey.getQueryClass(), queryKey.getFieldName(), queryKey.getDataType()));
+
+                if(result != null)
+                    throw new IllegalStateException("[ERROR] duplicate key: " + queryKey);
+            }
+        }
+
+        for (Class<?> queryClass : readQueryGroupByKeyData.keySet()) {
+            for (QueryKey queryKey : readQueryGroupByKeyData.get(queryClass)) {
+                Object result = CACHE.putIfAbsent(queryKey, createReadLambda(queryKey.getQueryClass(), queryKey.getFieldName(), queryKey.getDataType()));
+
+                if(result != null)
+                    throw new IllegalStateException("[ERROR] duplicate key: " + queryKey);
+            }
+        }
+    }
 
 
-    private Object createLambda(Class<?> queryClass, String fieldName, Class<?> returnType) {
+
+    private Object createWriteLambda(Class<?> queryClass, String fieldName, Class<?> returnType) {
         try {
             Class<?> wrappedType = ClassUtils.resolvePrimitiveIfNecessary(returnType);
             if (wrappedType != Long.class && wrappedType != Double.class) {
@@ -130,7 +271,7 @@ public class AggQueryRegistry {
             MethodHandles.Lookup base = MethodHandles.lookup();
             MethodHandles.Lookup lookup = MethodHandles.privateLookupIn(queryClass, base);
 
-            MethodHandle impl = findTargetHandle(lookup, queryClass, fieldName);
+            MethodHandle impl = findTargetGetHandle(lookup, queryClass, fieldName);
             MethodType erased = MethodType.methodType(prim, Object.class);
             MethodType dyn = MethodType.methodType(prim, queryClass);
 
@@ -149,8 +290,42 @@ public class AggQueryRegistry {
         }
     }
 
+    private Object createReadLambda(Class<?> queryClass, String fieldName, Class<?> acceptedType) {
+        try {
+            Class<?> wrappedType = ClassUtils.resolvePrimitiveIfNecessary(acceptedType);
+            if (wrappedType != Long.class && wrappedType != Double.class) {
+                throw new IllegalArgumentException("primitiveRetType must be long.class or double.class");
+            }
+            boolean isLong = (wrappedType == Long.class);
+            Class<?> prim = isLong ? long.class : double.class;
 
-    private MethodHandle findTargetHandle(MethodHandles.Lookup lookup, Class<?> queryClass, String fieldName) throws IllegalAccessException {
+            MethodHandles.Lookup base = MethodHandles.lookup();
+            MethodHandles.Lookup lookup = MethodHandles.privateLookupIn(queryClass, base);
+
+            MethodHandle impl = findTargetSetHandle(lookup, queryClass, fieldName);
+            MethodType erased = MethodType.methodType(void.class, Object.class, prim);
+            MethodType dyn = MethodType.methodType(void.class, queryClass, prim);
+
+            Class<?> iface = isLong ? LongSetter.class : DoubleSetter.class;
+
+            CallSite cs = LambdaMetafactory.metafactory(lookup, "set", MethodType.methodType(iface), erased, impl, dyn);
+
+            if(isLong) {
+                return (LongSetter) cs.getTarget().invokeExact();
+
+            }else {
+                return (DoubleSetter) cs.getTarget().invokeExact();
+            }
+
+        } catch (IllegalAccessException | LambdaConversionException e) {
+            throw new RuntimeException(e);
+        } catch (Throwable e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+
+    private MethodHandle findTargetGetHandle(MethodHandles.Lookup lookup, Class<?> queryClass, String fieldName) throws IllegalAccessException {
 
         if(queryClass.isRecord()) {
             for (RecordComponent rc : queryClass.getRecordComponents()) {
@@ -172,39 +347,29 @@ public class AggQueryRegistry {
     }
 
 
-    public List<ItemUnit> extractValue(Object queryDto) {
-        Class<?> queryClass = queryDto.getClass();
+    private MethodHandle findTargetSetHandle(MethodHandles.Lookup lookup, Class<?> queryClass, String fieldName) throws IllegalAccessException {
 
-        List<QueryKey> queryKeys = aggQueryKeyData.get(queryClass);
-        if (queryKeys == null || queryKeys.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "[ERROR] %s is not included in MetaData".formatted(queryClass.getName()));
+        if(queryClass.isRecord()) {
+            for (RecordComponent rc : queryClass.getRecordComponents()) {
+                if(rc.getName().equals(fieldName))
+                    return lookup.unreflect(rc.getAccessor());
+            }
         }
 
-        List<ItemUnit> itemUnits = new ArrayList<>();
+        String cap = Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1);
+        String methodName = "set" + cap;
 
-        for (QueryKey queryKey : queryKeys) {
-            if(queryKey.getDataType() == Long.class) {
-                LongAccessor longAcc = forLong(queryKey);
-                long value = longAcc.get(queryDto);
+        try {
+            var m = queryClass.getMethod(methodName);
+            return lookup.unreflect(m);
 
-                ItemSpec itemSpec = keyItemMap.get(queryKey);
-                ItemUnit itemUnit = new ItemUnit(itemSpec.getFieldName(), itemSpec.getOp(), itemSpec.getValueType(), value, null);
-                itemUnits.add(itemUnit);
-
-            }else if(queryKey.getDataType() == Double.class) {
-                DoubleAccessor doubleAcc = forDouble(queryKey);
-                double value = doubleAcc.get(queryDto);
-
-                ItemSpec itemSpec = keyItemMap.get(queryKey);
-                ItemUnit itemUnit = new ItemUnit(itemSpec.getFieldName(), itemSpec.getOp(), itemSpec.getValueType(), null, value);
-                itemUnits.add(itemUnit);
-            }else
-                throw new IllegalArgumentException("[ERROR] Unsupported data type. dataType=%s".formatted(queryKey.getDataType()));
+        } catch (NoSuchMethodException e) {
+            throw new IllegalArgumentException("[ERROR] %s class doesn't have %s field or setter Method".
+                    formatted(queryClass.getName(), fieldName));
         }
-
-        return itemUnits;
     }
+
+
 
 
     public String getGroupByKeys(String SERIAL_NUMBER, Object queryDto) {
@@ -217,14 +382,23 @@ public class AggQueryRegistry {
     }
 
 
-    private LongAccessor forLong(QueryKey queryKey) {
+    private LongAccessor forLongWrite(QueryKey queryKey) {
         return (LongAccessor) CACHE.get(queryKey);
     }
 
-
-    private DoubleAccessor forDouble(QueryKey queryKey) {
+    private DoubleAccessor forDoubleWrite(QueryKey queryKey) {
         return (DoubleAccessor) CACHE.get(queryKey);
     }
+
+    private LongSetter forLongSet(QueryKey queryKey) {
+        return (LongSetter) CACHE.get(queryKey);
+    }
+
+    private DoubleSetter forDoubleSet(QueryKey queryKey) {
+        return (DoubleSetter) CACHE.get(queryKey);
+    }
+
+
 
 
     private String generateGroupByKey(String SERIAL_NUMBER, Class<?> queryClass, Object queryDto, GroupByKey[] keys) {
@@ -237,12 +411,12 @@ public class AggQueryRegistry {
 
             if(type == ValueType.LONG) {
                 QueryKey queryKey = new QueryKey(queryClass, field, long.class);
-                LongAccessor acc = forLong(queryKey);
+                LongAccessor acc = forLongWrite(queryKey);
                 groupKeys.add(String.valueOf(acc.get(queryDto)));
 
             }else if(type == ValueType.DOUBLE) {
                 QueryKey queryKey = new QueryKey(queryClass, field, double.class);
-                DoubleAccessor acc = forDouble(queryKey);
+                DoubleAccessor acc = forDoubleWrite(queryKey);
                 groupKeys.add(String.valueOf(acc.get(queryDto)));
 
             }else

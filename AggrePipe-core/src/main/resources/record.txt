@@ -1,0 +1,1 @@
+1. record 아직 미지원 ( record setter 메소드 없음)
