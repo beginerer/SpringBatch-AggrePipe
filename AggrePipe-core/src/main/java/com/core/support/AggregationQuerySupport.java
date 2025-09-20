@@ -4,6 +4,7 @@ package com.core.support;
 import com.core.AggQueryMetadata;
 import com.core.ItemSpec;
 import com.core.annotaion.*;
+import com.core.operation.Operation;
 import com.core.operation.ValueType;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.support.BeanDefinitionValidationException;
@@ -55,7 +56,8 @@ public class AggregationQuerySupport implements ImportAware {
         baseSet.add(ClassUtils.getPackageName(metadata.getClassName()));
         List<String> bases = new ArrayList<>(baseSet);
 
-        this.aggQueryMetadataMap = scanAndBuildMetadata(bases);
+        this.aggQueryMetadataMap = scanAndBuildAggMetadata(bases);
+        this.readQueryMetadataMap = scanAndBuildReadMetadata(bases);
     }
 
 
@@ -72,7 +74,7 @@ public class AggregationQuerySupport implements ImportAware {
 
 
 
-    private Map<Class<?>, AggQueryMetadata> scanAndBuildMetadata(List<String> bases) {
+    private Map<Class<?>, AggQueryMetadata> scanAndBuildAggMetadata(List<String> bases) {
         var out = new LinkedHashMap<Class<?>, AggQueryMetadata>();
         var scanner = new ClassPathScanningCandidateComponentProvider(false);
         scanner.addIncludeFilter(new AnnotationTypeFilter(AggQuery.class, true));
@@ -89,12 +91,35 @@ public class AggregationQuerySupport implements ImportAware {
                 Class<?> dto = ClassUtils.resolveClassName(className, cl);
                 Set<String> fieldNames = getDeclaredFields(dto);
 
-                validateAnnotation(dto, fieldNames);
+                validateAggQueryAnnotation(dto, fieldNames);
                 AggQueryMetadata aggQueryMetadata = buildMetaData(dto);
                 out.put(dto, aggQueryMetadata);
             }
         }
         return out;
+    }
+
+    private Map<Class<?>, AggQueryMetadata> scanAndBuildReadMetadata(List<String> bases) {
+        var out = new LinkedHashMap<Class<?>, AggQueryMetadata>();
+        var scanner = new ClassPathScanningCandidateComponentProvider(false);
+        scanner.addIncludeFilter(new AnnotationTypeFilter(ReadQuery.class, true));
+        ClassLoader cl = Thread.currentThread().getContextClassLoader();
+
+        Set<String> seen = new HashSet<>();
+
+        for(String base  : bases) {
+            for(BeanDefinition bd : scanner.findCandidateComponents(base)) {
+                String className = Objects.requireNonNull(bd.getBeanClassName());
+                if(!seen.add(className))
+                    continue;
+
+                Class<?> dto = ClassUtils.resolveClassName(className, cl);
+                Set<String> fieldNames = getDeclaredFields(dto);
+
+                validateReadQueryAnnotation(dto, fieldNames);
+
+            }
+        }
     }
 
 
@@ -127,14 +152,20 @@ public class AggregationQuerySupport implements ImportAware {
     }
 
 
-    private void validateAnnotation(Class<?> queryDto, Set<String> filedNames) {
-        validateGroupByKeys(queryDto, filedNames);
+    private void validateAggQueryAnnotation(Class<?> queryDto, Set<String> filedNames) {
+        validateAggGroupByKeys(queryDto, filedNames);
         validateAggField(queryDto);
+    }
+
+    private void validateReadQueryAnnotation(Class<?> queryDto, Set<String> filedNames) {
+        validateReadGroupByKeys(queryDto, filedNames);
+        validateReadField(queryDto);
+        validateReadQueryAvailable(queryDto);
     }
 
 
 
-    private void validateGroupByKeys(Class<?> queryClass, Set<String> filedNames) {
+    private void validateAggGroupByKeys(Class<?> queryClass, Set<String> filedNames) {
         AggQuery ann = queryClass.getAnnotation(AggQuery.class);
         GroupByKey[] keys = ann.groupByKeys();
 
@@ -169,6 +200,40 @@ public class AggregationQuerySupport implements ImportAware {
         }
     }
 
+    private void validateReadGroupByKeys(Class<?> queryClass, Set<String> filedNames) {
+        ReadQuery ann = queryClass.getDeclaredAnnotation(ReadQuery.class);
+        GroupByKey[] keys = ann.groupByKeys();
+
+        List<String> keyNames = Arrays.stream(keys).map(GroupByKey::field).toList();
+
+        List<String> missing = keyNames.stream().filter(k -> !filedNames.contains(k)).toList();
+        if(!missing.isEmpty())
+            throw new BeanDefinitionValidationException("[ERROR] %s class is missing group-by fields: %s".
+                    formatted(queryClass.getName(), missing));
+
+
+        List<String> dupKeys = findDuplicates(keyNames);
+        if(!dupKeys.isEmpty())
+            throw new BeanDefinitionValidationException("[ERROR] %s class has duplicate group-by fields : %s".
+                    formatted(queryClass.getName(), dupKeys));
+
+        List<String> hasAggFieldAnn = keyNames.stream().filter(keyName -> hasReadFiledAnnotation(queryClass, keyName)).toList();
+        if(!hasAggFieldAnn.isEmpty())
+            throw new BeanDefinitionValidationException("[ERROR] group-by fields must not declare @AggField annotation : %s");
+
+        if(queryClass.isRecord()) {
+            for(GroupByKey key : keys) {
+                RecordComponent rc = getGroupByField(key, queryClass.getRecordComponents());
+                validateGroupByKeyAnnotationValueType(key, rc.getType());
+            }
+        }else {
+            for(GroupByKey key : keys) {
+                Field field = getGroupByField(key, queryClass.getDeclaredFields());
+                validateGroupByKeyAnnotationValueType(key, field.getType());
+            }
+        }
+    }
+
 
 
     private void validateAggField(Class<?> queryDto) {
@@ -178,7 +243,6 @@ public class AggregationQuerySupport implements ImportAware {
             if(aggFields.isEmpty())
                 throw new BeanDefinitionValidationException("[ERROR] %s class does not declare any @AggField".
                         formatted(queryDto.getName()));
-
 
             aggFields.stream().forEach(rc -> {
                 AggField annotation = rc.getDeclaredAnnotation(AggField.class);
@@ -198,6 +262,52 @@ public class AggregationQuerySupport implements ImportAware {
         }
     }
 
+    private void validateReadField(Class<?> queryDto) {
+        if(queryDto.isRecord()) {
+            List<RecordComponent> readFields = getReadFields(queryDto.getRecordComponents());
+            if(readFields.isEmpty())
+                throw new BeanDefinitionValidationException("[ERROR] %s class does not declare any @ReadAggField".
+                        formatted(queryDto.getName()));
+
+            readFields.stream().forEach(rc -> {
+                ReadAggField annotation = rc.getDeclaredAnnotation(ReadAggField.class);
+                validateReadFieldAnnotationValueType(annotation, rc.getType());
+            });
+        }else {
+            List<Field> readFields = getReadFields(queryDto.getDeclaredFields());
+            if(readFields.isEmpty())
+                throw new BeanDefinitionValidationException("[ERROR] %s class does not declare any @ReadAggField".
+                        formatted(queryDto.getName()));
+
+            readFields.stream().forEach(field -> {
+                ReadAggField annotation = field.getDeclaredAnnotation(ReadAggField.class);
+                validateReadFieldAnnotationValueType(annotation, field.getType());
+            });
+        }
+    }
+
+    private void validateReadQueryAvailable(Class<?> queryDto) {
+        ReadQuery annotation = queryDto.getDeclaredAnnotation(ReadQuery.class);
+        String originalClassName = annotation.aggQueryClassName();
+
+        Class<?> aggQueryClass = aggQueryMetadataMap.keySet().stream().filter(clazz -> clazz.getSimpleName().equals(originalClassName)).findAny()
+                .orElseThrow(() -> new BeanDefinitionValidationException("[ERROR] %s class's original class name doesn't matches"));
+
+        if(queryDto.isRecord()) {
+            RecordComponent[] originalRecordComponents = aggQueryClass.getRecordComponents();
+            for (RecordComponent readField : getReadFields(queryDto.getRecordComponents())) {
+                ReadAggField ann = readField.getDeclaredAnnotation(ReadAggField.class);
+                validateReadFieldAnnotationMetadata(ann, originalRecordComponents);
+            }
+        }else {
+            Field[] OriginalFields = aggQueryClass.getDeclaredFields();
+            for (Field readField : getReadFields(queryDto.getDeclaredFields())) {
+                ReadAggField ann = readField.getAnnotation(ReadAggField.class);
+                validateReadFieldAnnotationMetadata(ann, OriginalFields);
+            }
+        }
+    }
+
 
 
     private Set<String> getDeclaredFields(Class<?> clazz) {
@@ -207,12 +317,12 @@ public class AggregationQuerySupport implements ImportAware {
             for (RecordComponent rc : clazz.getRecordComponents()) {
                 names.add(rc.getName());
             }
-        }
-
-        for (Field field : clazz.getDeclaredFields()) {
-            int modifiers = field.getModifiers();
-            if(!Modifier.isStatic(modifiers))
-                names.add(field.getName());
+        }else {
+            for (Field field : clazz.getDeclaredFields()) {
+                int modifiers = field.getModifiers();
+                if(!Modifier.isStatic(modifiers))
+                    names.add(field.getName());
+            }
         }
         return names;
     }
@@ -230,6 +340,18 @@ public class AggregationQuerySupport implements ImportAware {
             return !Modifier.isStatic(modifiers);
         }).filter(field -> field.isAnnotationPresent(AggField.class)).toList();
     }
+
+    private List<RecordComponent> getReadFields(RecordComponent[] fields) {
+        return Arrays.stream(fields).filter(rc -> rc.isAnnotationPresent(ReadAggField.class)).toList();
+    }
+
+    private List<Field> getReadFields(Field[] fields) {
+        return Arrays.stream(fields).filter(field -> {
+            int modifiers = field.getModifiers();
+            return !Modifier.isStatic(modifiers);
+        }).filter(field -> field.isAnnotationPresent(ReadAggField.class)).toList();
+    }
+
 
     private RecordComponent getGroupByField(GroupByKey key, RecordComponent[] fields) {
         String field = key.field();
@@ -277,10 +399,46 @@ public class AggregationQuerySupport implements ImportAware {
         return false;
     }
 
+    private boolean hasReadFiledAnnotation(Class<?> clazz, String name) {
+        if(clazz.isRecord()) {
+            for (RecordComponent rc : clazz.getRecordComponents()) {
+                if(rc.getName().equals(name))
+                    return rc.isAnnotationPresent(ReadAggField.class);
+            }
+        }else {
+            for (Field f : clazz.getDeclaredFields()) {
+                if(f.getName().equals(name)) {
+                    int modifiers = f.getModifiers();
+                    if(!Modifier.isStatic(modifiers))
+                        return f.isAnnotationPresent(ReadAggField.class);
+                }
+            }
+        }
+        return false;
+    }
+
 
     private void validateAggFieldAnnotationValueType(AggField aggField, Class<?> fieldRawType) {
         Class<?> fieldType = ClassUtils.resolvePrimitiveIfNecessary(fieldRawType);
         ValueType valueType = aggField.type();
+
+        if(valueType == ValueType.LONG) {
+            if(fieldType != Long.class)
+                throw new BeanDefinitionValidationException("[ERROR] Unsupported valueType. valueType=%s, fieldType=%s".
+                        formatted(valueType.name(), fieldType.getName()));
+        }else if(valueType == ValueType.DOUBLE) {
+            if(fieldType != Double.class)
+                throw new BeanDefinitionValidationException("[ERROR] Unsupported valueType. valueType=%s, fieldType=%s".
+                        formatted(valueType.name(), fieldType.getName()));
+        } else {
+            throw new BeanDefinitionValidationException("[ERROR] Unsupported valueType. valueType=%s, fieldType=%s".
+                    formatted(valueType.name(), fieldType.getName()));
+        }
+    }
+
+    private void validateReadFieldAnnotationValueType(ReadAggField readField, Class<?> fieldRawType) {
+        Class<?> fieldType = ClassUtils.resolvePrimitiveIfNecessary(fieldRawType);
+        ValueType valueType = readField.type();
 
         if(valueType == ValueType.LONG) {
             if(fieldType != Long.class)
@@ -313,4 +471,55 @@ public class AggregationQuerySupport implements ImportAware {
                     formatted(valueType.name(), fieldType.getName()));
         }
     }
+
+    private void validateReadFieldAnnotationMetadata(ReadAggField readAggField, RecordComponent[] recordComponents) {
+        String originalFieldName = readAggField.originalFieldName();
+        Operation operation = readAggField.op();
+        ValueType valueType = readAggField.type();
+
+        RecordComponent recordComponent = Arrays.stream(recordComponents).filter(rc -> rc.getName().equals(originalFieldName)).findAny()
+                .orElseThrow(() -> new BeanDefinitionValidationException("[ERROR] %s fieldName doesn't exist in AggQuery class".
+                        formatted(originalFieldName)));
+
+        AggField ann = recordComponent.getDeclaredAnnotation(AggField.class);
+        if(ann == null)
+            throw new BeanDefinitionValidationException("[ERROR] %s field does not declare @AggField".formatted(originalFieldName));
+
+        Operation[] aggFieldOperations = ann.op();
+        ValueType aggFieldValueType = ann.type();
+
+        if(valueType != aggFieldValueType)
+            throw new BeanDefinitionValidationException("[ERROR] %s field does not matches value type. expected=%s, current=%s".
+                    formatted(aggFieldOperations,valueType));
+
+        Arrays.stream(aggFieldOperations).filter(op -> op == operation).findAny()
+                .orElseThrow(() -> new BeanDefinitionValidationException("[ERROR] %s field doest not support %s operation. support operation=%s".
+                        formatted(operation, aggFieldOperations)));
+    }
+    private void validateReadFieldAnnotationMetadata(ReadAggField readAggField, Field[] fields) {
+        String originalFieldName = readAggField.originalFieldName();
+        Operation operation = readAggField.op();
+        ValueType valueType = readAggField.type();
+
+        Field field = Arrays.stream(fields).filter(f -> f.getName().equals(originalFieldName)).findAny()
+                .orElseThrow(() -> new BeanDefinitionValidationException("[ERROR] %s fieldName doesn't exist in AggQuery class".
+                        formatted(originalFieldName)));
+
+        AggField ann = field.getDeclaredAnnotation(AggField.class);
+        if(ann == null)
+            throw new BeanDefinitionValidationException("[ERROR] %s field does not declare @AggField".formatted(originalFieldName));
+
+        Operation[] aggFieldOperations = ann.op();
+        ValueType aggFieldValueType = ann.type();
+
+        if(valueType != aggFieldValueType)
+            throw new BeanDefinitionValidationException("[ERROR] %s field does not matches value type. expected=%s, current=%s".
+                    formatted(aggFieldOperations,valueType));
+
+        Arrays.stream(aggFieldOperations).filter(op -> op == operation).findAny()
+                .orElseThrow(() -> new BeanDefinitionValidationException("[ERROR] %s field doest not support %s operation. support operation=%s".
+                        formatted(operation, aggFieldOperations)));
+    }
+
+
 }

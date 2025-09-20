@@ -24,6 +24,12 @@ public class AggQueryRegistry {
 
     private final Map<QueryKey, ItemSpec> keyItemMap;
 
+    // read query
+    private final Map<Class<?>, AggQueryMetadata> readQueryMetadataMap;
+
+    private final Map<Class<?>, List<QueryKey>> readQueryKeyData;
+
+
 
 
 
