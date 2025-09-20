@@ -7,7 +7,9 @@ public enum Operation {
 
     MAX("MAX:"),
 
-    MIN("MIN:");
+    MIN("MIN:"),
+
+    COUNT_ONLY_FOR_READ("_meta");
 
 
     private String prefix;

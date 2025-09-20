@@ -13,7 +13,7 @@ import java.util.Objects;
  * <p>key : KEYS[1]=idempKey</p>
  * <p>argv: ARGV[1]= ttl, ARGV[2]=payLoad</p>
  * */
-public class LuaScript implements LuaOperation<String, String> {
+public class LuaScript implements LuaOperation<String, String, ChunkUpdatePayload> {
 
 
     private final String name;

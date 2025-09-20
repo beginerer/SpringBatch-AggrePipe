@@ -11,7 +11,7 @@ import io.lettuce.core.ScriptOutputType;
  * <p>key : KEYS[1]=idempKey</p>
  * <p>argv: ARGV[1]= ttl, ARGV[2]=payLoad</p>
  * */
-public class DigestLuaScript implements DigestLuaOperation<String, String> {
+public class DigestLuaScript implements DigestLuaOperation<String, String, ChunkUpdatePayload> {
 
 
     private final String name;

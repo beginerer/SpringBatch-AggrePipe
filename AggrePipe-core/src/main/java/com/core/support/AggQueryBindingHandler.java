@@ -1,10 +1,14 @@
 package com.core.support;
 
 import com.core.Chunk;
+import com.core.ChunkReadPayload;
 import com.core.ChunkUpdatePayload;
 import com.core.ItemUnit;
 import com.core.operation.Operation;
 import com.core.operation.ValueType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -22,6 +26,8 @@ public class AggQueryBindingHandler {
 
     private final ConcurrentHashMap<Key, Chunk> bufferMap;
 
+
+    private final Logger logger = LoggerFactory.getLogger(AggQueryBindingHandler.class);
 
 
 
@@ -71,9 +77,8 @@ public class AggQueryBindingHandler {
             Key key = new Key(serialNumber, token);
 
             Chunk result = bufferMap.remove(key);
-            if(result == null)
-                throw new IllegalStateException("[ERROR] key is not found in bufferMap. SERIAL_NUMBER=%s, token=%s".
-                        formatted(serialNumber, token));
+
+            logger.warn("[ERROR] key is not found in bufferMap. SERIAL_NUMBER={}, token={}",serialNumber, token);
         }
     }
 
@@ -83,8 +88,7 @@ public class AggQueryBindingHandler {
         Key key = new Key(SERIAL_NUMBER, token);
 
         Chunk result = bufferMap.putIfAbsent(key, chunk);
-        if(result!=null)
-            throw new IllegalStateException("[ERROR] key is already exist. key=%s".formatted(key));
+        logger.warn("[ERROR] key is already exist. key={}",key);
     }
 
 
@@ -114,6 +118,7 @@ public class AggQueryBindingHandler {
         }
         return new Chunk(token, ItemMap, counts);
     }
+
 
 
     private List<ItemUnit> preCalculate(List<ItemUnit> itemUnits) {
@@ -173,6 +178,9 @@ public class AggQueryBindingHandler {
 
         return newItemUnits;
     }
+
+
+
 
 
 

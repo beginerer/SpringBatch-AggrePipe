@@ -25,8 +25,8 @@ import java.lang.annotation.Target;
  * public record OrderAggDto(
  *     Long memberId,
  *     Long orderId,
- *     @AggField(op = Operation.SUM, type = ValueType.LONG) long amountKrw,
- *     @AggField(op = Operation.COUNT, type = ValueType.LONG) long cnt
+ *     @AggField(op = {Operation.SUM, Operation.MAX} , type = ValueType.LONG) long amountKrw,
+ *     @AggField(op = {Operation.MIN}, type = ValueType.LONG) long point
  * ) {}
  * }</pre>
  *
@@ -34,10 +34,6 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
 public @interface AggQuery {
-
-
-    String name() default "";
-
 
     GroupByKey[] groupByKeys();
 

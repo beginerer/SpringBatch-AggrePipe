@@ -16,7 +16,7 @@ public class LuaScriptFactory {
         Objects.requireNonNull(serial_number);
         Objects.requireNonNull(idemKey);
 
-        String name = "test";
+        String name = "luaScript";
         String script = "local idemKey = KEYS[1]\n" +
                 "local ttl = ARGV[1]\n" +
                 "local payload = cjson.decode(ARGV[2])\n" +
@@ -114,6 +114,24 @@ public class LuaScriptFactory {
 
         return new LuaScript(name, serial_number, script, idemKey, ttl);
     }
+
+
+    // Map<String, List<String>>
+    public static LuaScriptForReading create(String serialNumber) {
+        String name = "luaScriptForReading";
+        String script = "\n" +
+                "\n" +
+                "local result = {}\n" +
+                "for i = 1, #ARGV do\n" +
+                "  local k = ARGV[i]\n" +
+                "  result[k] = redis.call('HGETALL', k)\n" +
+                "end\n" +
+                "return cjson.encode(result)";
+
+        return new LuaScriptForReading(serialNumber,script,name);
+    }
+
+
 
 
 }

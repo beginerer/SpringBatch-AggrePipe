@@ -12,6 +12,10 @@ import io.lettuce.core.api.async.RedisAsyncCommands;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.*;
 
 
@@ -50,7 +54,7 @@ public class RedisConnection  {
 
 
 
-    public RedisResultSet eval(LuaOperation<String, String> op, ChunkUpdatePayload payload) {
+    public RedisResultSet eval(LuaOperation<String, String, ChunkUpdatePayload> op, ChunkUpdatePayload payload) {
 
         final var conn = connection;
 
@@ -85,7 +89,7 @@ public class RedisConnection  {
     }
 
 
-    public RedisResultSet evalsha(DigestLuaOperation<String, String> op, ChunkUpdatePayload payload) {
+    public RedisResultSet evalsha(DigestLuaOperation<String, String, ChunkUpdatePayload> op, ChunkUpdatePayload payload) {
 
         final var conn = connection;
 
@@ -110,14 +114,54 @@ public class RedisConnection  {
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new LuaScriptInterruptedException("[ERROR] SCRIPT EVAL interrupted (name=%s)".formatted(op.getName()), e);
+            throw new LuaScriptInterruptedException("[ERROR] SCRIPT EVALSHA interrupted (name=%s)".formatted(op.getName()), e);
         } catch (ExecutionException e) {
-            throw new LuaScriptNonRetryableException("[ERROR] SCRIPT EVAL failed (name=%s)".formatted(op.getName()), e);
+            throw new LuaScriptNonRetryableException("[ERROR] SCRIPT EVALSHA failed (name=%s)".formatted(op.getName()), e);
         } catch (TimeoutException e) {
-            throw new LuaScriptTimeoutException("[ERROR] SCRIPT EVAL timed out (name =%s, timeout=%d %s)".
+            throw new LuaScriptTimeoutException("[ERROR] SCRIPT EVALSHA timed out (name =%s, timeout=%d %s)".
                     formatted(op.getName(), timeAmount, timeUnit), e);
         }
     }
+
+
+    public ChunkReadPayload read(LuaOperation<String,String, ChunkUpdatePayload> op, ChunkUpdatePayload payload) {
+
+
+        final var conn = connection;
+
+        if(conn == null || !conn.isOpen())
+            throw new ConnectionClosedException("[ERROR] connection is closed");
+
+        if(op == null)
+            throw new IllegalArgumentException("[ERROR] LuaOperation is null");
+
+        try {
+            String[] argv = op.inputData(payload);
+
+            var response = async.eval(op.getLuaScript(), op.getScriptOutputType(), op.getKeys(), argv).get(timeAmount, timeUnit);
+
+            if(response == null)
+                throw new LuaScriptNonRetryableException("[ERROR] result is null");
+
+            var result = Jackson.resolveJsonString((String) response);
+
+            return new ChunkReadPayload(result, payload);
+
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new LuaScriptInterruptedException("[ERROR] SCRIPT READ interrupted (name=%s)".formatted(op.getName()), e);
+        } catch (ExecutionException e) {
+            throw new LuaScriptNonRetryableException("[ERROR] SCRIPT READ failed (name=%s)".formatted(op.getName()), e);
+        } catch (TimeoutException e) {
+            throw new LuaScriptTimeoutException("[ERROR] SCRIPT READ timed out (name =%s, timeout=%d %s)".
+                    formatted(op.getName(), timeAmount, timeUnit), e);
+        }
+
+
+    }
+
+
 
 
 

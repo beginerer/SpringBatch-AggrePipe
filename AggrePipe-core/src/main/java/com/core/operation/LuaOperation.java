@@ -3,10 +3,10 @@ package com.core.operation;
 import com.core.ChunkUpdatePayload;
 import io.lettuce.core.ScriptOutputType;
 
-public interface LuaOperation <T, V> {
+public interface LuaOperation <T, V, U> {
 
 
-    V[] inputData(ChunkUpdatePayload payload);
+    V[] inputData(U payload);
 
     String getName();
 

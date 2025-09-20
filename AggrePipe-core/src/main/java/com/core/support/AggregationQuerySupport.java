@@ -25,7 +25,10 @@ public class AggregationQuerySupport implements ImportAware {
 
     private AnnotationAttributes attrs;
 
-    private Map<Class<?>, AggQueryMetadata> metadataMap;
+    private Map<Class<?>, AggQueryMetadata> aggQueryMetadataMap;
+
+    private Map<Class<?>, AggQueryMetadata> readQueryMetadataMap;
+
 
 
 
@@ -52,13 +55,13 @@ public class AggregationQuerySupport implements ImportAware {
         baseSet.add(ClassUtils.getPackageName(metadata.getClassName()));
         List<String> bases = new ArrayList<>(baseSet);
 
-        this.metadataMap = scanAndBuildMetadata(bases);
+        this.aggQueryMetadataMap = scanAndBuildMetadata(bases);
     }
 
 
     @Bean
     public AggQueryRegistry aggQueryRegistry() {
-        return new AggQueryRegistry(metadataMap);
+        return new AggQueryRegistry(aggQueryMetadataMap);
     }
 
 
@@ -95,6 +98,7 @@ public class AggregationQuerySupport implements ImportAware {
     }
 
 
+
     private AggQueryMetadata buildMetaData(Class<?> clazz) {
         if(clazz.isRecord()) {
             List<RecordComponent> aggFields = getAggFields(clazz.getRecordComponents());
@@ -106,9 +110,8 @@ public class AggregationQuerySupport implements ImportAware {
                 itemSpecs.add(itemSpec);
             }
             AggQuery ann = clazz.getDeclaredAnnotation(AggQuery.class);
-            String className = ann.name().isBlank() ? clazz.getName() : ann.name();
 
-            return new AggQueryMetadata(className, ann.groupByKeys(), true, itemSpecs);
+            return new AggQueryMetadata(clazz.getName(), ann.groupByKeys(), true, itemSpecs);
         }else {
             List<Field> aggFields = getAggFields(clazz.getDeclaredFields());
             List<ItemSpec> itemSpecs = new ArrayList<>();
@@ -119,9 +122,7 @@ public class AggregationQuerySupport implements ImportAware {
                 itemSpecs.add(itemSpec);
             }
             AggQuery ann = clazz.getDeclaredAnnotation(AggQuery.class);
-            String className = ann.name().isBlank() ? clazz.getName() : ann.name();
-
-            return new AggQueryMetadata(className, ann.groupByKeys(), false, itemSpecs);
+            return new AggQueryMetadata(clazz.getName(), ann.groupByKeys(), false, itemSpecs);
         }
     }
 

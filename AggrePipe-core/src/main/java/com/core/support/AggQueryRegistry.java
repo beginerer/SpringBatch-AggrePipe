@@ -15,24 +15,30 @@ import java.util.stream.Collectors;
 public class AggQueryRegistry {
 
 
-    private final Map<Class<?>, AggQueryMetadata> metaData;
+    // write query
+    private final Map<Class<?>, AggQueryMetadata> aggQueryMetadataMap;
 
-    private final Map<Class<?>, List<QueryKey>> keyData;
+    private final Map<Class<?>, List<QueryKey>> aggQueryKeyData;
 
-    private final Map<Class<?>, List<QueryKey>> groupByKeyData;
+    private final Map<Class<?>, List<QueryKey>> aggQueryGroupByKeyData;
 
     private final Map<QueryKey, ItemSpec> keyItemMap;
+
+
+
+
+
 
     private final ConcurrentHashMap<QueryKey, Object> CACHE;
 
 
 
 
-    public AggQueryRegistry(Map<Class<?>, AggQueryMetadata> metaData) {
-        this.metaData = metaData;
+    public AggQueryRegistry(Map<Class<?>, AggQueryMetadata> aggQueryMetadataMap) {
+        this.aggQueryMetadataMap = aggQueryMetadataMap;
         this.keyItemMap = new HashMap<>();
-        this.groupByKeyData = new HashMap<>();
-        this.keyData = buildKeyData();
+        this.aggQueryGroupByKeyData = new HashMap<>();
+        this.aggQueryKeyData = buildKeyData();
         this.CACHE = buildCacheData();
     }
 
@@ -41,10 +47,10 @@ public class AggQueryRegistry {
     private Map<Class<?>, List<QueryKey>> buildKeyData() {
         Map<Class<?>, List<QueryKey>> map = new HashMap<>();
 
-        for (Class<?> queryClass : metaData.keySet()) {
+        for (Class<?> queryClass : aggQueryMetadataMap.keySet()) {
             List<QueryKey> queryKeys = new ArrayList<>();
             List<QueryKey> groupByKeys = new ArrayList<>();
-            AggQueryMetadata metadata = metaData.get(queryClass);
+            AggQueryMetadata metadata = aggQueryMetadataMap.get(queryClass);
 
             for(GroupByKey key : metadata.getGroupByKeys()) {
                 String field = key.field();
@@ -60,7 +66,7 @@ public class AggQueryRegistry {
                     throw new IllegalArgumentException("[ERROR] Unsupported value type. valueType=%s".
                             formatted(valueType));
             }
-            groupByKeyData.put(queryClass, groupByKeys);
+            aggQueryGroupByKeyData.put(queryClass, groupByKeys);
 
             for (ItemSpec item : metadata.getItems()) {
                 if(item.getValueType() == ValueType.LONG) {
@@ -84,8 +90,8 @@ public class AggQueryRegistry {
     private ConcurrentHashMap<QueryKey, Object> buildCacheData() {
         ConcurrentHashMap<QueryKey,Object> cacheMap = new ConcurrentHashMap<>();
 
-        for (Class<?> queryClass : keyData.keySet()) {
-            for (QueryKey queryKey : keyData.get(queryClass)) {
+        for (Class<?> queryClass : aggQueryKeyData.keySet()) {
+            for (QueryKey queryKey : aggQueryKeyData.get(queryClass)) {
                 Object result = cacheMap.putIfAbsent(queryKey, createLambda(queryKey.getQueryClass(), queryKey.getFieldName(), queryKey.getDataType()));
 
                 if(result != null)
@@ -93,8 +99,8 @@ public class AggQueryRegistry {
             }
         }
 
-        for (Class<?> queryClass : groupByKeyData.keySet()) {
-            for (QueryKey queryKey : groupByKeyData.get(queryClass)) {
+        for (Class<?> queryClass : aggQueryGroupByKeyData.keySet()) {
+            for (QueryKey queryKey : aggQueryGroupByKeyData.get(queryClass)) {
                 Object result = cacheMap.putIfAbsent(queryKey, createLambda(queryKey.getQueryClass(), queryKey.getFieldName(), queryKey.getDataType()));
 
                 if(result != null)
@@ -163,7 +169,7 @@ public class AggQueryRegistry {
     public List<ItemUnit> extractValue(Object queryDto) {
         Class<?> queryClass = queryDto.getClass();
 
-        List<QueryKey> queryKeys = keyData.get(queryClass);
+        List<QueryKey> queryKeys = aggQueryKeyData.get(queryClass);
         if (queryKeys == null || queryKeys.isEmpty()) {
             throw new IllegalArgumentException(
                     "[ERROR] %s is not included in MetaData".formatted(queryClass.getName()));
@@ -197,7 +203,7 @@ public class AggQueryRegistry {
 
     public String getGroupByKeys(String SERIAL_NUMBER, Object queryDto) {
         Class<?> queryClass = queryDto.getClass();
-        AggQueryMetadata metadata = metaData.get(queryClass);
+        AggQueryMetadata metadata = aggQueryMetadataMap.get(queryClass);
         if(metadata == null)
             throw new IllegalArgumentException("[ERROR] %s class is not included in MetaData".formatted(queryClass));
 
@@ -209,9 +215,11 @@ public class AggQueryRegistry {
         return (LongAccessor) CACHE.get(queryKey);
     }
 
+
     private DoubleAccessor forDouble(QueryKey queryKey) {
         return (DoubleAccessor) CACHE.get(queryKey);
     }
+
 
     private String generateGroupByKey(String SERIAL_NUMBER, Class<?> queryClass, Object queryDto, GroupByKey[] keys) {
 

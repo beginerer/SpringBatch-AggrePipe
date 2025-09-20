@@ -2,10 +2,7 @@ package com.core;
 
 import com.core.config.RedisClientConfig;
 import com.core.config.TimeoutConfig;
-import com.core.operation.DigestLuaScript;
-import com.core.operation.LuaScript;
-import com.core.operation.LuaScriptFactory;
-import com.core.operation.Operation;
+import com.core.operation.*;
 import com.core.support.AggQueryBindingHandler;
 import com.redis.testcontainers.RedisContainer;
 import io.lettuce.core.RedisClient;
@@ -204,6 +201,32 @@ public class luaScriptTest {
             Assertions.assertThat(max_quantity).isEqualTo(String.valueOf(maxQuantity));
             Assertions.assertThat(min_quantity).isEqualTo(String.valueOf(minQuantity));
         }
+    }
+
+
+    @Test
+    @DisplayName("Reading Test")
+    public void test3() {
+        String serialNumber = "serialNumber";
+        String idempKey = "idempKey";
+        int ttl = 5000;
+        int number = 1000;
+        int range = 10;
+
+        LuaScript luaScript = LuaScriptFactory.create(serialNumber, idempKey, ttl);
+        LuaScriptForReading luaScriptForReading = LuaScriptFactory.create(serialNumber);
+        QueryDtoFactory.statistics statistics = QueryDtoFactory.getStatistics(serialNumber, number, range);
+
+        // given
+        List<QueryDto> queryDto = statistics.getQueryDto();
+        handler.store(serialNumber, "chunk_unique_token", queryDto);
+        ChunkUpdatePayload payload = handler.buildPayload(serialNumber, "chunk_unique_token");
+        redisConnection.eval(luaScript, payload);
+
+        // when
+        ChunkReadPayload result = redisConnection.read(luaScriptForReading, payload);
+
+
     }
 
     boolean equalByScale(double a, double b, int scale) {
