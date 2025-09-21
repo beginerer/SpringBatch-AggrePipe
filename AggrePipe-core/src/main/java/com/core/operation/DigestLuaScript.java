@@ -51,7 +51,7 @@ public class DigestLuaScript implements DigestLuaOperation<String, String, Chunk
             throw new IllegalArgumentException("[ERROR] Unsupported payLoad. required=%s current=%s".
                     formatted(SERIAL_NUMBER, payload.getScriptSerialNumber()));
 
-        String argv = Jackson.convetToString(payload);
+        String argv = Jackson.convetToString(payload.getData());
 
         return new String[]{String.valueOf(ttl), argv};
     }

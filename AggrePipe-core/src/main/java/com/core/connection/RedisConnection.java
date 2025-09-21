@@ -143,7 +143,7 @@ public class RedisConnection  {
             if(response == null)
                 throw new LuaScriptNonRetryableException("[ERROR] result is null");
 
-            Map<String, Object> groupKeys = payload.getData();
+            Map<String, Object> groupKeys = payload.getGroupKeyQueryDtoMapping();
 
             Map<String, List<String>> result = Jackson.resolveJsonString((String) response);
 

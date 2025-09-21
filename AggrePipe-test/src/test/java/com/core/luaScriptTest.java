@@ -55,10 +55,11 @@ public class luaScriptTest {
         String idempKey = "idempKey";
         int ttl = 5000;
         int number = 1000;
+        int percentage = 3;
         int range = 10;
 
         LuaScript luaScript = LuaScriptFactory.create(serialNumber, idempKey, ttl);
-        QueryDtoFactory.statistics statistics = QueryDtoFactory.getStatistics(serialNumber, number, range);
+        QueryDtoFactory.statistics statistics = QueryDtoFactory.getStatistics(serialNumber, number, percentage, range);
 
         // given
         List<QueryDto> queryDto = statistics.getQueryDto();
@@ -131,28 +132,28 @@ public class luaScriptTest {
         String serialNumber = "serialNumber";
         String idempKey = "idempKey";
         int ttl = 5000;
-        int number = 10000;
-        int range = 100;
+        int number = 1000;
+        int percentage = 3;
+        int range = 10;
 
         LuaScript luaScript = LuaScriptFactory.create(serialNumber, idempKey, ttl);
-        QueryDtoFactory.statistics statistics = QueryDtoFactory.getStatistics(serialNumber, number, range);
-
-        DigestLuaScript digestLuaScript = redisConnection.loadScript(luaScript);
+        QueryDtoFactory.statistics statistics = QueryDtoFactory.getStatistics(serialNumber, number, percentage, range);
 
         // given
         List<QueryDto> queryDto = statistics.getQueryDto();
         Map<String, Long> counts = statistics.getCounts();
         Map<String, QueryDtoFactory.staticCal> data = statistics.getData();
 
-        //when
+
         handler.store(serialNumber, "chunk_unique_token", queryDto);
         ChunkUpdatePayload payload = handler.buildPayload(serialNumber, "chunk_unique_token");
 
-        long start = System.currentTimeMillis();
+        DigestLuaScript digestLuaScript = redisConnection.loadScript(luaScript);
+
+
+        //when
         RedisWriteResultSet result = redisConnection.evalsha(digestLuaScript, payload);
-        long end = System.currentTimeMillis();
-        long gap = end - start;
-        System.out.println("time: " + gap);
+
 
         String scriptSerialNumber = result.getScriptSerialNumber();
         Chunk  chunk = result.getData().get(0);

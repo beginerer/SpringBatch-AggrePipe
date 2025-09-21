@@ -25,16 +25,17 @@ public class ReadQueryBindingHandler {
         if(serialNumber==null || serialNumber.isBlank())
             throw new IllegalArgumentException("[ERROR] serialNumber is null");
 
-        Map<String, Object> data = new HashMap<>();
+        Map<String, Object> map = new HashMap<>();
+        Set<String> data = new HashSet<>();
 
 
         for (Object readQuery : readQueries) {
             String groupByKey = registry.getReadGroupByKeys(serialNumber, readQuery);
-
-            data.putIfAbsent(groupByKey, readQuery);
+            data.add(groupByKey);
+            map.putIfAbsent(groupByKey, readQuery);
         }
 
-        return new ChunkReadPayload(serialNumber, data);
+        return new ChunkReadPayload(serialNumber, map,List.copyOf(data));
     }
 
 

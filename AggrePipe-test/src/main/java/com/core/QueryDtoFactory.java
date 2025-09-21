@@ -10,11 +10,25 @@ public class QueryDtoFactory {
 
 
 
-    public static QueryDtoFactory.statistics getStatistics(String serialNumber, int number, int range) {
+    public static QueryDtoFactory.statistics getStatistics(String serialNumber, int number, int percentage, int range) {
         List<QueryDto> list = new ArrayList<>();
         Random rd = new Random();
 
-        for(int i=1; i<=number; i++) {
+        double d = (number / 100);
+        int size = (int) (d * percentage);
+
+
+        long same_userId = Math.abs(rd.nextInt(range));
+        long same_orderId = Math.abs(rd.nextInt(range));
+
+        for(int i=0; i<size; i++) {
+            double unitPrice = rd.nextDouble() * range;
+            long quantity = Math.abs(rd.nextInt(range));
+            QueryDto queryDto = new QueryDto(same_userId, same_orderId, unitPrice, quantity, LocalDateTime.now());
+            list.add(queryDto);
+        }
+
+        for(int i=size; i<number; i++) {
             long userId = Math.abs(rd.nextInt(range));
             long orderId = Math.abs(rd.nextInt(range));
             double unitPrice = rd.nextDouble() * range;

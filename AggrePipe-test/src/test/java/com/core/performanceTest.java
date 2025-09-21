@@ -65,14 +65,14 @@ public class performanceTest {
         try (var w = Files.newBufferedWriter(
                 OUT, StandardCharsets.UTF_8,
                 StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
-            w.write("number,range,tookMs,ok");
+            w.write("number,range,percentage,tookMs,ok");
             w.write(System.lineSeparator());
         }
     }
 
 
-    private static void appendRow(int id, int number, int range, long tookMs, boolean ok) {
-        String line = id + "," + number + "," + range + "," + tookMs + "," + ok + System.lineSeparator();
+    private static void appendRow(int id, int number, int range, int percentage, long tookMs, boolean ok) {
+        String line = id + "," + number + "," + range + "," + percentage + "," + tookMs + "," + ok + System.lineSeparator();
         synchronized (LOCK) {
             try {
                 Files.writeString(
@@ -90,7 +90,7 @@ public class performanceTest {
     @ParameterizedTest
     @CsvFileSource(resources = "/case1.csv", numLinesToSkip = 1)
     @DisplayName("performance test")
-    public void writeBench(int id, int number, int range) throws ExecutionException, InterruptedException, TimeoutException {
+    public void writeBench(int id, int number, int range, int percentage) throws ExecutionException, InterruptedException, TimeoutException {
         String serialNumber = "serialNumber";
         String idempKey = "idempKey";
         int ttl = 5000;
@@ -98,7 +98,7 @@ public class performanceTest {
 
         // given
         LuaScript luaScript = LuaScriptFactory.create(serialNumber, idempKey, ttl);
-        QueryDtoFactory.statistics statistics = QueryDtoFactory.getStatistics(serialNumber, number, range);
+        QueryDtoFactory.statistics statistics = QueryDtoFactory.getStatistics(serialNumber, number, percentage, range);
         List<QueryDto> queryDto = statistics.getQueryDto();
 
         //when
@@ -114,14 +114,14 @@ public class performanceTest {
         boolean success = result.isSuccess();
 
         aggQueryBindingHandler.flushPayLoad(result);
-        appendRow(id,number, range, gap, success);
+        appendRow(id,number, range, percentage, gap, success);
     }
 
 
     @ParameterizedTest
     @CsvFileSource(resources = "/case1.csv", numLinesToSkip = 1)
     @DisplayName("performance test")
-    public void readBench(int id, int number, int range) {
+    public void readBench(int id, int number, int range, int percentage) {
 
         String serialNumber = "serialNumber";
         String idempKey = "idempKey";
@@ -133,7 +133,7 @@ public class performanceTest {
         LuaScriptForReading luaScriptForReading = LuaScriptFactory.create(serialNumber);
 
         // statistics
-        QueryDtoFactory.statistics statistics = QueryDtoFactory.getStatistics(serialNumber, number, range);
+        QueryDtoFactory.statistics statistics = QueryDtoFactory.getStatistics(serialNumber, number, percentage,  range);
 
         Map<String, QueryDtoFactory.staticCal> data = statistics.getData();
 
@@ -162,7 +162,7 @@ public class performanceTest {
         System.out.println("time: " + gap);
 
         List<ReadDto> results = readQueryBindingHandler.recordValue(resultSet, ReadDto.class);
-        appendRow(id,number, range, gap, true);
+        appendRow(id,number, range, percentage, gap, true);
     }
 
     private String generateGroupByKey(String serialNumber, long userId, long orderId) {

@@ -19,7 +19,7 @@ public class LuaScriptFactory {
         String name = "luaScript";
         String script = "local idemKey = KEYS[1]\n" +
                 "local ttl = ARGV[1]\n" +
-                "local payload = cjson.decode(ARGV[2])\n" +
+                "local chunks = cjson.decode(ARGV[2])\n" +
                 "\n" +
                 "\n" +
                 "local function hmax(key, field, v)\n" +
@@ -50,8 +50,8 @@ public class LuaScriptFactory {
                 "end\n" +
                 "\n" +
                 "\n" +
-                "for i = 1, #payload.data do\n" +
-                "  local chunk = payload.data[i]\n" +
+                "for i = 1, #chunks do\n" +
+                "  local chunk = chunks[i]\n" +
                 "  local token = tostring(chunk.token)\n" +
                 "  local added = redis.call('SADD', idemKey, token)\n" +
                 "  redis.call('EXPIRE', idemKey, ttl)\n" +
@@ -110,7 +110,7 @@ public class LuaScriptFactory {
                 "  end\n" +
                 "end\n" +
                 "\n" +
-                "return redis.status_reply('OK')";
+                "return redis.status_reply('OK')\n";
 
         return new LuaScript(name, serial_number, script, idemKey, ttl);
     }
@@ -128,7 +128,7 @@ public class LuaScriptFactory {
                 "end\n" +
                 "return cjson.encode(result)";
 
-        return new LuaScriptForReading(serialNumber,script,name);
+        return new LuaScriptForReading(serialNumber, script, name);
     }
 
 

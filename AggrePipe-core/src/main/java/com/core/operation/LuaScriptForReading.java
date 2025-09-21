@@ -1,14 +1,7 @@
 package com.core.operation;
 
-import com.core.Chunk;
 import com.core.ChunkReadPayload;
-import com.core.ChunkUpdatePayload;
-import com.core.Jackson;
 import io.lettuce.core.ScriptOutputType;
-
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
 
 
 /**
@@ -44,7 +37,7 @@ public class LuaScriptForReading implements LuaOperation<String,String, ChunkRea
             throw new IllegalArgumentException("[ERROR] Unsupported payLoad. required=%s current=%s".
                     formatted(SERIAL_NUMBER, payload.getScriptSerialNumber()));
 
-        return payload.getData().keySet().stream().toList().toArray(new String[0]);
+        return payload.getData().toArray(new String[0]);
     }
 
     @Override

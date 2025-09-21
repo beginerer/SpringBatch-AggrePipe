@@ -60,6 +60,7 @@ public class IntegrationTest {
         String serialNumber = "serialNumber";
         String idempKey = "idempKey";
         int ttl = 5000;
+        int percentage = 3;
 
         int number = 1000;
         int range = 1000;
@@ -70,7 +71,7 @@ public class IntegrationTest {
         LuaScriptForReading luaScriptForReading = LuaScriptFactory.create(serialNumber);
 
         // statistics
-        QueryDtoFactory.statistics statistics = QueryDtoFactory.getStatistics(serialNumber, number, range);
+        QueryDtoFactory.statistics statistics = QueryDtoFactory.getStatistics(serialNumber, number, percentage, range);
 
         Map<String, QueryDtoFactory.staticCal> data = statistics.getData();
 

@@ -9,7 +9,7 @@ public enum Operation {
 
     MIN("MIN:"),
 
-    COUNT_ONLY_FOR_READ("_meta");
+    COUNT_ONLY_FOR_READ("_meta:count");
 
 
     private String prefix;
@@ -20,6 +20,9 @@ public enum Operation {
 
 
     public static  String resolveFieldName(Operation op, String fieldName) {
+        if(op == Operation.COUNT_ONLY_FOR_READ)
+            return op.prefix;
+
         return op.prefix + fieldName;
     }
 
