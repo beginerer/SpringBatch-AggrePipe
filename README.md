@@ -6,13 +6,20 @@
 
 ## Write Perfomance Test
 
-<img width="347" height="210" alt="write" src="https://github.com/user-attachments/assets/10ba043f-8d79-4515-8474-642dce9117f8" />
+#### chunk : 1000기준
+<img width="347" height="210" alt="write" src="https://github.com/user-attachments/assets/10ba043f-8d79-4515-8474-642dce9117f8" /> </br>
+
+#### dup key percenatage : 3% 기준
+<img width="355" height="213" alt="chunk_write" src="https://github.com/user-attachments/assets/5ab0fa42-497e-4a84-9f1f-0addba676fb8" />
+
 
 ## Read Performance Test
 
-<img width="354" height="214" alt="스크린샷 2025-09-21 오후 11 53 11" src="https://github.com/user-attachments/assets/68695cbe-1132-449b-8ba7-df53834cf482" />
+#### chunk : 1000기준
+<img width="354" height="214" alt="스크린샷 2025-09-21 오후 11 53 11" src="https://github.com/user-attachments/assets/68695cbe-1132-449b-8ba7-df53834cf482" /> </br>
 
-
+#### dup key percenatage : 3% 기준
+<img width="356" height="212" alt="스크린샷 2025-09-22 오전 12 05 28" src="https://github.com/user-attachments/assets/618fc6c2-2e1d-4600-a263-450b0a5ee1ba" />
 
 
 ### Test Dto
