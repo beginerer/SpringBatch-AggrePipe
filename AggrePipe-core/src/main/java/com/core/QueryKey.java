@@ -14,11 +14,11 @@ public class QueryKey {
     private final Class<?> dataType;
 
 
-    public QueryKey(Class<?> queryClass, String fieldName, Class<?> rawType) {
+    public QueryKey(Class<?> queryClass, String fieldName, Class<?> dataType) {
         this.queryClass = Objects.requireNonNull(queryClass);
         this.fieldName = Objects.requireNonNull(fieldName);
-        Objects.requireNonNull(rawType);
-        this.dataType = ClassUtils.resolvePrimitiveIfNecessary(rawType);
+        Objects.requireNonNull(dataType);
+        this.dataType = ClassUtils.resolvePrimitiveIfNecessary(dataType);
     }
 
 

@@ -2,7 +2,7 @@ package com.core;
 
 import java.util.List;
 
-public class RedisResultSet {
+public class RedisWriteResultSet {
 
 
 
@@ -14,7 +14,7 @@ public class RedisResultSet {
 
 
 
-    public RedisResultSet(ChunkUpdatePayload payload, boolean success) {
+    public RedisWriteResultSet(ChunkUpdatePayload payload, boolean success) {
         this.scriptSerialNumber = payload.getScriptSerialNumber();
         this.data = payload.getData();
         this.success = success;

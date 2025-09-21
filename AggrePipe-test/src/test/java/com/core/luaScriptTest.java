@@ -69,7 +69,7 @@ public class luaScriptTest {
         ChunkUpdatePayload payload = handler.buildPayload(serialNumber, "chunk_unique_token");
 
         long start = System.currentTimeMillis();
-        RedisResultSet result = redisConnection.eval(luaScript, payload);
+        RedisWriteResultSet result = redisConnection.eval(luaScript, payload);
         long end = System.currentTimeMillis();
         long gap = end - start;
         System.out.println("time: " + gap);
@@ -148,7 +148,7 @@ public class luaScriptTest {
         ChunkUpdatePayload payload = handler.buildPayload(serialNumber, "chunk_unique_token");
 
         long start = System.currentTimeMillis();
-        RedisResultSet result = redisConnection.evalsha(digestLuaScript, payload);
+        RedisWriteResultSet result = redisConnection.evalsha(digestLuaScript, payload);
         long end = System.currentTimeMillis();
         long gap = end - start;
         System.out.println("time: " + gap);
@@ -204,30 +204,6 @@ public class luaScriptTest {
     }
 
 
-    @Test
-    @DisplayName("Reading Test")
-    public void test3() {
-        String serialNumber = "serialNumber";
-        String idempKey = "idempKey";
-        int ttl = 5000;
-        int number = 1000;
-        int range = 10;
-
-        LuaScript luaScript = LuaScriptFactory.create(serialNumber, idempKey, ttl);
-        LuaScriptForReading luaScriptForReading = LuaScriptFactory.create(serialNumber);
-        QueryDtoFactory.statistics statistics = QueryDtoFactory.getStatistics(serialNumber, number, range);
-
-        // given
-        List<QueryDto> queryDto = statistics.getQueryDto();
-        handler.store(serialNumber, "chunk_unique_token", queryDto);
-        ChunkUpdatePayload payload = handler.buildPayload(serialNumber, "chunk_unique_token");
-        redisConnection.eval(luaScript, payload);
-
-        // when
-        ChunkReadPayload result = redisConnection.read(luaScriptForReading, payload);
-
-
-    }
 
     boolean equalByScale(double a, double b, int scale) {
         BigDecimal A = BigDecimal.valueOf(a).setScale(scale, RoundingMode.HALF_UP);

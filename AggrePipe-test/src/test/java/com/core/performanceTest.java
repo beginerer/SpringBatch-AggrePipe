@@ -27,7 +27,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
-import java.util.stream.Stream;
 
 
 @Testcontainers
@@ -100,14 +99,14 @@ public class performanceTest {
         ChunkUpdatePayload payload = handler.buildPayload(serialNumber, "chunk_unique_token");
 
         long start = System.currentTimeMillis();
-        RedisResultSet result = redisConnection.eval(luaScript, payload);
+        RedisWriteResultSet result = redisConnection.eval(luaScript, payload);
         long end = System.currentTimeMillis();
         long gap = end - start;
         System.out.println("time: " + gap);
 
         boolean success = result.isSuccess();
 
-        handler.flushPayLoad(payload);
+        handler.flushPayLoad(result);
         appendRow(id,number, range, gap, success);
     }
 

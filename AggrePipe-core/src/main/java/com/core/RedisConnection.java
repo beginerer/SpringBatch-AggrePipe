@@ -12,10 +12,9 @@ import io.lettuce.core.api.async.RedisAsyncCommands;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.*;
 
 
@@ -54,7 +53,7 @@ public class RedisConnection  {
 
 
 
-    public RedisResultSet eval(LuaOperation<String, String, ChunkUpdatePayload> op, ChunkUpdatePayload payload) {
+    public RedisWriteResultSet eval(LuaOperation<String, String, ChunkUpdatePayload> op, ChunkUpdatePayload payload) {
 
         final var conn = connection;
 
@@ -72,9 +71,9 @@ public class RedisConnection  {
                 throw new LuaScriptNonRetryableException("[ERROR] result is null");
 
             if (response.equals("OK"))
-                return new RedisResultSet(payload,true);
+                return new RedisWriteResultSet(payload,true);
             else
-                return new RedisResultSet(payload,false);
+                return new RedisWriteResultSet(payload,false);
 
 
         } catch (InterruptedException e) {
@@ -89,7 +88,7 @@ public class RedisConnection  {
     }
 
 
-    public RedisResultSet evalsha(DigestLuaOperation<String, String, ChunkUpdatePayload> op, ChunkUpdatePayload payload) {
+    public RedisWriteResultSet evalsha(DigestLuaOperation<String, String, ChunkUpdatePayload> op, ChunkUpdatePayload payload) {
 
         final var conn = connection;
 
@@ -107,9 +106,9 @@ public class RedisConnection  {
                 throw new LuaScriptNonRetryableException("[ERROR] result is null");
 
             if (response.equals("OK"))
-                return new RedisResultSet(payload,true);
+                return new RedisWriteResultSet(payload,true);
             else
-                return new RedisResultSet(payload,false);
+                return new RedisWriteResultSet(payload,false);
 
 
         } catch (InterruptedException e) {
@@ -124,7 +123,7 @@ public class RedisConnection  {
     }
 
 
-    public ChunkReadPayload read(LuaOperation<String,String, ChunkUpdatePayload> op, ChunkUpdatePayload payload) {
+    public RedisReadResultSet read(LuaOperation<String,String, ChunkReadPayload> op, ChunkReadPayload payload) {
 
 
         final var conn = connection;
@@ -143,9 +142,19 @@ public class RedisConnection  {
             if(response == null)
                 throw new LuaScriptNonRetryableException("[ERROR] result is null");
 
-            var result = Jackson.resolveJsonString((String) response);
+            Map<String, Object> groupKeys = payload.getData();
 
-            return new ChunkReadPayload(result, payload);
+            Map<String, List<String>> result = Jackson.resolveJsonString((String) response);
+
+            List<RedisReadResultSet.Data> data = new ArrayList<>();
+
+            for (var e : result.entrySet()) {
+                String key = e.getKey();
+                Object queryDto = groupKeys.get(key);
+                data.add(new RedisReadResultSet.Data(key,e.getValue(), queryDto));
+            }
+
+            return new RedisReadResultSet(payload.getScriptSerialNumber(), data, true);
 
 
         } catch (InterruptedException e) {

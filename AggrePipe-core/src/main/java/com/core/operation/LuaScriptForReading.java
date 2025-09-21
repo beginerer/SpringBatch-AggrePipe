@@ -1,7 +1,9 @@
 package com.core.operation;
 
 import com.core.Chunk;
+import com.core.ChunkReadPayload;
 import com.core.ChunkUpdatePayload;
+import com.core.Jackson;
 import io.lettuce.core.ScriptOutputType;
 
 import java.util.HashSet;
@@ -12,7 +14,7 @@ import java.util.Set;
 /**
  * <p>argv: ARGV[1]= Payload</p>
  * */
-public class LuaScriptForReading implements LuaOperation<String,String, ChunkUpdatePayload> {
+public class LuaScriptForReading implements LuaOperation<String,String, ChunkReadPayload> {
 
 
     private final String name;
@@ -36,21 +38,13 @@ public class LuaScriptForReading implements LuaOperation<String,String, ChunkUpd
     }
 
 
-
     @Override
-    public String[] inputData(ChunkUpdatePayload payload) {
-        String scriptSerialNumber = payload.getScriptSerialNumber();
-        if(!SERIAL_NUMBER.equals(scriptSerialNumber))
-            throw new IllegalArgumentException("[ERROR] serialNumber is different. expected=%s current=%s".
-                    formatted(SERIAL_NUMBER, scriptSerialNumber));
+    public String[] inputData(ChunkReadPayload payload) {
+        if(!payload.getScriptSerialNumber().equals(SERIAL_NUMBER))
+            throw new IllegalArgumentException("[ERROR] Unsupported payLoad. required=%s current=%s".
+                    formatted(SERIAL_NUMBER, payload.getScriptSerialNumber()));
 
-        Set<String> groupByKeys = new HashSet<>();
-
-        for (Chunk chunk : payload.getData()) {
-            Set<String> keys = chunk.getItems().keySet();
-            groupByKeys.addAll(keys);
-        }
-        return groupByKeys.toArray(new String[0]);
+        return payload.getData().keySet().stream().toList().toArray(new String[0]);
     }
 
     @Override

@@ -1,9 +1,6 @@
 package com.core.support;
 
-import com.core.Chunk;
-import com.core.ChunkReadPayload;
-import com.core.ChunkUpdatePayload;
-import com.core.ItemUnit;
+import com.core.*;
 import com.core.operation.Operation;
 import com.core.operation.ValueType;
 import org.slf4j.Logger;
@@ -68,9 +65,9 @@ public class AggQueryBindingHandler {
     }
 
 
-    public void flushPayLoad(ChunkUpdatePayload payload) {
-        String serialNumber = payload.getScriptSerialNumber();
-        List<Chunk> chunks = payload.getData();
+    public void flushPayLoad(RedisWriteResultSet resultSet) {
+        String serialNumber = resultSet.getScriptSerialNumber();
+        List<Chunk> chunks = resultSet.getData();
 
         for(Chunk chunk : chunks) {
             String token = chunk.getToken();
@@ -100,7 +97,7 @@ public class AggQueryBindingHandler {
         Map<String, Long> counts = new HashMap<>();
 
         for (Object queryDto : queryDtos) {
-            String groupByKeys = registry.getGroupByKeys(Objects.requireNonNull(serialNumber), queryDto);
+            String groupByKeys = registry.getAggGroupByKeys(Objects.requireNonNull(serialNumber), queryDto);
 
             // record count
             Long before = counts.getOrDefault(groupByKeys, 0L);

@@ -26,7 +26,7 @@ import java.util.*;
 public class AggregationQuerySupport implements ImportAware {
 
 
-    private AnnotationAttributes attrs;
+    private AnnotationAttributes attrAs;
 
     private Map<Class<?>, AggQueryMetadata> aggQueryMetadataMap;
 
@@ -39,17 +39,17 @@ public class AggregationQuerySupport implements ImportAware {
 
     @Override
     public void setImportMetadata(AnnotationMetadata metadata) {
-        this.attrs = AnnotationAttributes.fromMap(
+        this.attrAs = AnnotationAttributes.fromMap(
                 metadata.getAnnotationAttributes(EnableAggQuery.class.getName()));
 
         Set<String> baseSet = new LinkedHashSet<>();
 
-        if(attrs !=null) {
-            for(String p : attrs.getStringArray("basePackages")) {
+        if(attrAs !=null) {
+            for(String p : attrAs.getStringArray("basePackages")) {
                 if(p !=null && !p.isBlank())
                     baseSet.add(p);
             }
-            for(Class<?> c : attrs.getClassArray("basePackageClasses")) {
+            for(Class<?> c : attrAs.getClassArray("basePackageClasses")) {
                 if(c !=null)
                     baseSet.add(c.getPackageName());
             }
@@ -72,6 +72,11 @@ public class AggregationQuerySupport implements ImportAware {
     @Bean
     public AggQueryBindingHandler aggQueryBindingHandler(AggQueryRegistry registry) {
         return new AggQueryBindingHandler(registry);
+    }
+
+    @Bean
+    public ReadQueryBindingHandler readQueryBindingHandler(AggQueryRegistry registry) {
+        return new ReadQueryBindingHandler(registry);
     }
 
 
@@ -161,7 +166,7 @@ public class AggregationQuerySupport implements ImportAware {
 
             for(RecordComponent readField : readFields) {
                 ReadAggField annotation = readField.getDeclaredAnnotation(ReadAggField.class);
-                ReadItemSpec itemSpec = new ReadItemSpec(annotation.originalFieldName(), readField.getName(), annotation.op(), annotation.type());
+                ReadItemSpec itemSpec = new ReadItemSpec(clazz, annotation.originalFieldName(), readField.getName(), annotation.op(), annotation.type());
                 itemSpecs.add(itemSpec);
             }
             ReadQuery ann = clazz.getDeclaredAnnotation(ReadQuery.class);
@@ -172,7 +177,7 @@ public class AggregationQuerySupport implements ImportAware {
 
             for (Field readField : readFields) {
                 ReadAggField annotation = readField.getDeclaredAnnotation(ReadAggField.class);
-                ReadItemSpec itemSpec = new ReadItemSpec(annotation.originalFieldName(), readField.getName(), annotation.op(), annotation.type());
+                ReadItemSpec itemSpec = new ReadItemSpec(clazz, annotation.originalFieldName(), readField.getName(), annotation.op(), annotation.type());
                 itemSpecs.add(itemSpec);
             }
             ReadQuery ann = clazz.getDeclaredAnnotation(ReadQuery.class);
@@ -246,9 +251,9 @@ public class AggregationQuerySupport implements ImportAware {
             throw new BeanDefinitionValidationException("[ERROR] %s class has duplicate group-by fields : %s".
                     formatted(queryClass.getName(), dupKeys));
 
-        List<String> hasAggFieldAnn = keyNames.stream().filter(keyName -> hasReadFiledAnnotation(queryClass, keyName)).toList();
-        if(!hasAggFieldAnn.isEmpty())
-            throw new BeanDefinitionValidationException("[ERROR] group-by fields must not declare @AggField annotation : %s");
+        List<String> hasReadFieldAnn = keyNames.stream().filter(keyName -> hasReadFiledAnnotation(queryClass, keyName)).toList();
+        if(!hasReadFieldAnn.isEmpty())
+            throw new BeanDefinitionValidationException("[ERROR] group-by fields must not declare @ReadAggField annotation : %s");
 
         if(queryClass.isRecord()) {
             for(GroupByKey key : keys) {
