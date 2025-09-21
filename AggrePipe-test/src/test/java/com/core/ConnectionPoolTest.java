@@ -2,6 +2,8 @@ package com.core;
 
 
 import com.core.config.RedisClientConfig;
+import com.core.connection.RedisConnection;
+import com.core.connection.RedisConnectionPool;
 import com.redis.testcontainers.RedisContainer;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;

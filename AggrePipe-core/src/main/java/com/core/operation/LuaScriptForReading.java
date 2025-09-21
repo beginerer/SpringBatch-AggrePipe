@@ -12,7 +12,7 @@ import java.util.Set;
 
 
 /**
- * <p>argv: ARGV[1]= Payload</p>
+ * <p>argv: ARGV[1]= payload</p>
  * */
 public class LuaScriptForReading implements LuaOperation<String,String, ChunkReadPayload> {
 

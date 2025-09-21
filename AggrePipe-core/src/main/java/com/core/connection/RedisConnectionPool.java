@@ -1,4 +1,4 @@
-package com.core;
+package com.core.connection;
 
 import com.core.config.RedisClientConfig;
 import com.core.config.TimeoutConfig;

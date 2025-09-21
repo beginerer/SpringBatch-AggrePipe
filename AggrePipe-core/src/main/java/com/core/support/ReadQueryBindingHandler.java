@@ -6,6 +6,9 @@ import com.core.operation.Operation;
 import java.util.*;
 
 
+/**
+ * <P>1.Build</P>
+ * <P>2.Record</P>*/
 public class ReadQueryBindingHandler {
 
 
@@ -17,7 +20,7 @@ public class ReadQueryBindingHandler {
     }
 
 
-    public ChunkReadPayload build(String serialNumber, List<Object> readQueries) {
+    public ChunkReadPayload buildPayload(String serialNumber, List<? extends Object> readQueries) {
 
         if(serialNumber==null || serialNumber.isBlank())
             throw new IllegalArgumentException("[ERROR] serialNumber is null");
@@ -74,17 +77,7 @@ public class ReadQueryBindingHandler {
             throw new IllegalStateException("[ERROR] queryDto is not instance of %s class".
                     formatted(type));
         }
-
-
-
         return out;
-    }
-
-    public <T> List<T> castList(List<?> src, Class<T> type) {
-        return src.stream()
-                .filter(type::isInstance)
-                .map(type::cast)
-                .toList();
     }
 
 

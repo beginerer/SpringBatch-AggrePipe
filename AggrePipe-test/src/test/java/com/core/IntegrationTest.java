@@ -1,6 +1,5 @@
 package com.core;
 
-
 import com.core.config.RedisClientConfig;
 import com.core.config.TimeoutConfig;
 import com.core.connection.RedisConnection;
@@ -25,14 +24,15 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
+
 
 
 @Testcontainers
 @SpringBootTest(classes = com.core.Config.class)
-public class ReadQueryTest {
+public class IntegrationTest {
 
 
     private RedisAsyncCommands<String, String> async;
@@ -52,48 +52,69 @@ public class ReadQueryTest {
             RedisContainer.DEFAULT_IMAGE_NAME.withTag(RedisContainer.DEFAULT_TAG));
 
 
+
+
+
     @Test
     public void test() {
         String serialNumber = "serialNumber";
         String idempKey = "idempKey";
         int ttl = 5000;
-        int number = 1000;
-        int range = 10;
 
-        LuaScript luaScript = LuaScriptFactory.create(serialNumber, idempKey, ttl);
-        LuaScriptForReading luaScriptForReading = LuaScriptFactory.create(serialNumber);
+        int number = 1000;
+        int range = 1000;
 
 
         // given
-        List<QueryDto> queryDtos = List.of(
-                new QueryDto(1L, 5L, 10.1, 10L, LocalDateTime.now()),
-                new QueryDto(1L, 5L, 20.1, 20L, LocalDateTime.now()),
-                new QueryDto(1L,5L,30.1,30L, LocalDateTime.now())
-        );
+        LuaScript luaScript = LuaScriptFactory.create(serialNumber, idempKey, ttl);
+        LuaScriptForReading luaScriptForReading = LuaScriptFactory.create(serialNumber);
 
-        aggQueryBindingHandler.store(serialNumber, "chunk_unique_token", queryDtos);
-        ChunkUpdatePayload p = aggQueryBindingHandler.buildPayload(serialNumber, "chunk_unique_token");
-        redisConnection.eval(luaScript, p);
+        // statistics
+        QueryDtoFactory.statistics statistics = QueryDtoFactory.getStatistics(serialNumber, number, range);
 
-        // when
-        ReadDto readDto = new ReadDto(1L, 5L);
-        ChunkReadPayload payload = readQueryBindingHandler.buildPayload(serialNumber, List.of(readDto));
+        Map<String, QueryDtoFactory.staticCal> data = statistics.getData();
 
-        RedisReadResultSet resultSet = redisConnection.read(luaScriptForReading, payload);
+        List<QueryDto> writeDtos = statistics.getQueryDto();
+        List<ReadDto> readDtos = writeDtos.stream().map(dto -> {
+            Long userId = dto.getUserId();
+            Long orderId = dto.getOrderId();
+            return new ReadDto(userId, orderId);
+        }).toList();
+
+        aggQueryBindingHandler.store(serialNumber, "chunk_unique_token", writeDtos);
+        ChunkUpdatePayload writePayload = aggQueryBindingHandler.buildPayload(serialNumber, "chunk_unique_token");
+
+        // write redis request
+        redisConnection.eval(luaScript, writePayload);
+
+        //when
+        ChunkReadPayload readPayload = readQueryBindingHandler.buildPayload(serialNumber, readDtos);
+
+        RedisReadResultSet resultSet = redisConnection.read(luaScriptForReading, readPayload);
+        List<ReadDto> results = readQueryBindingHandler.recordValue(resultSet, ReadDto.class);
 
 
-        ReadDto result = readQueryBindingHandler.recordValue(resultSet, readDto.getClass()).get(0);
+        for (ReadDto result : results) {
+            String groupKey = generateGroupByKey(serialNumber, result.getUserId(), result.getOrderId());
+            QueryDtoFactory.staticCal cal = data.get(groupKey);
 
+            if(cal == null)
+                throw new IllegalStateException("[ERROR] group key is not included in redis.");
 
-        double uniPriceSum = 10.1 + 20.1 + 30.1;
+            Double summUnitPrice = result.getSumm_unitPrice();
+            Double maxUnitPirce = result.getMaxUnitPirce();
+            Double minUnitPrice = result.getMinUnitPrice();
+            Long minQuanitity = result.getMin_quanitity();
 
-
-        Assertions.assertThat(result.getMin_quanitity()).isEqualTo(10L);
-        Assertions.assertThat(equalByScale(result.getMaxUnitPirce(), uniPriceSum, 15));
-        Assertions.assertThat(equalByScale(result.getMaxUnitPirce(), 30.1, 15));
-        Assertions.assertThat(equalByScale(result.getMinUnitPrice(), 10.1, 15));
-
+            Assertions.assertThat(equalByScale(summUnitPrice, cal.sum_unitPrice, 15));
+            Assertions.assertThat(equalByScale(maxUnitPirce, cal.max_unitPrice, 15));
+            Assertions.assertThat(equalByScale(minUnitPrice, cal.min_unitPrice, 15));
+            Assertions.assertThat(minQuanitity).isEqualTo(cal.min_quantity);
+        }
     }
+
+
+
 
 
     boolean equalByScale(double a, double b, int scale) {
@@ -101,6 +122,15 @@ public class ReadQueryTest {
         BigDecimal B = BigDecimal.valueOf(b).setScale(scale, RoundingMode.HALF_UP);
         return A.compareTo(B) == 0;
     }
+
+
+
+
+    private String generateGroupByKey(String serialNumber, long userId, long orderId) {
+        return "["+serialNumber +"]" + userId + "," +  orderId;
+    }
+
+
 
 
     @BeforeEach

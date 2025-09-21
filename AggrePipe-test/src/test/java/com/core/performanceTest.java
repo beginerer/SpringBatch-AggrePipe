@@ -2,9 +2,12 @@ package com.core;
 
 import com.core.config.RedisClientConfig;
 import com.core.config.TimeoutConfig;
+import com.core.connection.RedisConnection;
 import com.core.operation.LuaScript;
 import com.core.operation.LuaScriptFactory;
+import com.core.operation.LuaScriptForReading;
 import com.core.support.AggQueryBindingHandler;
+import com.core.support.ReadQueryBindingHandler;
 import com.redis.testcontainers.RedisContainer;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;
@@ -25,6 +28,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
@@ -39,7 +43,10 @@ public class performanceTest {
 
 
     @Autowired
-    private AggQueryBindingHandler handler;
+    private AggQueryBindingHandler aggQueryBindingHandler;
+
+    @Autowired
+    private ReadQueryBindingHandler readQueryBindingHandler;
 
 
     @Container
@@ -83,7 +90,7 @@ public class performanceTest {
     @ParameterizedTest
     @CsvFileSource(resources = "/case1.csv", numLinesToSkip = 1)
     @DisplayName("performance test")
-    public void bench(int id, int number, int range) throws ExecutionException, InterruptedException, TimeoutException {
+    public void writeBench(int id, int number, int range) throws ExecutionException, InterruptedException, TimeoutException {
         String serialNumber = "serialNumber";
         String idempKey = "idempKey";
         int ttl = 5000;
@@ -95,8 +102,8 @@ public class performanceTest {
         List<QueryDto> queryDto = statistics.getQueryDto();
 
         //when
-        handler.store(serialNumber, "chunk_unique_token", queryDto);
-        ChunkUpdatePayload payload = handler.buildPayload(serialNumber, "chunk_unique_token");
+        aggQueryBindingHandler.store(serialNumber, "chunk_unique_token", queryDto);
+        ChunkUpdatePayload payload = aggQueryBindingHandler.buildPayload(serialNumber, "chunk_unique_token");
 
         long start = System.currentTimeMillis();
         RedisWriteResultSet result = redisConnection.eval(luaScript, payload);
@@ -106,8 +113,60 @@ public class performanceTest {
 
         boolean success = result.isSuccess();
 
-        handler.flushPayLoad(result);
+        aggQueryBindingHandler.flushPayLoad(result);
         appendRow(id,number, range, gap, success);
+    }
+
+
+    @ParameterizedTest
+    @CsvFileSource(resources = "/case1.csv", numLinesToSkip = 1)
+    @DisplayName("performance test")
+    public void readBench(int id, int number, int range) {
+
+        String serialNumber = "serialNumber";
+        String idempKey = "idempKey";
+        int ttl = 5000;
+
+
+        // given
+        LuaScript luaScript = LuaScriptFactory.create(serialNumber, idempKey, ttl);
+        LuaScriptForReading luaScriptForReading = LuaScriptFactory.create(serialNumber);
+
+        // statistics
+        QueryDtoFactory.statistics statistics = QueryDtoFactory.getStatistics(serialNumber, number, range);
+
+        Map<String, QueryDtoFactory.staticCal> data = statistics.getData();
+
+        List<QueryDto> writeDtos = statistics.getQueryDto();
+        List<ReadDto> readDtos = writeDtos.stream().map(dto -> {
+            Long userId = dto.getUserId();
+            Long orderId = dto.getOrderId();
+            return new ReadDto(userId, orderId);
+        }).toList();
+
+        aggQueryBindingHandler.store(serialNumber, "chunk_unique_token", writeDtos);
+        ChunkUpdatePayload writePayload = aggQueryBindingHandler.buildPayload(serialNumber, "chunk_unique_token");
+
+
+        // write redis request
+        RedisWriteResultSet eval = redisConnection.eval(luaScript, writePayload);
+        aggQueryBindingHandler.flushPayLoad(eval);
+
+        //when
+        ChunkReadPayload readPayload = readQueryBindingHandler.buildPayload(serialNumber, readDtos);
+
+        long start = System.currentTimeMillis();
+        RedisReadResultSet resultSet = redisConnection.read(luaScriptForReading, readPayload);
+        long end = System.currentTimeMillis();
+        long gap = end - start;
+        System.out.println("time: " + gap);
+
+        List<ReadDto> results = readQueryBindingHandler.recordValue(resultSet, ReadDto.class);
+        appendRow(id,number, range, gap, true);
+    }
+
+    private String generateGroupByKey(String serialNumber, long userId, long orderId) {
+        return "["+serialNumber +"]" + userId +  orderId;
     }
 
 
