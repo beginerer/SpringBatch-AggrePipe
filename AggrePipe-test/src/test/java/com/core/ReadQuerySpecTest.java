@@ -32,7 +32,7 @@ import java.util.concurrent.ExecutionException;
 
 @Testcontainers
 @SpringBootTest(classes = com.core.Config.class)
-public class ReadQueryTest {
+public class ReadQuerySpecTest {
 
 
     private RedisAsyncCommands<String, String> async;

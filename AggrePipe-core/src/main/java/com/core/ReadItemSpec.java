@@ -5,8 +5,6 @@ import com.core.operation.ValueType;
 
 public class ReadItemSpec {
 
-    private Class<?> readQueryClass;
-
     private String targetFieldName;
 
     private String fieldName;
@@ -16,8 +14,7 @@ public class ReadItemSpec {
     private ValueType valueType;
 
 
-    public ReadItemSpec(Class<?> readQueryClass, String targetFieldName, String fieldName, Operation op, ValueType valueType) {
-        this.readQueryClass = readQueryClass;
+    public ReadItemSpec(String targetFieldName, String fieldName, Operation op, ValueType valueType) {
         this.targetFieldName = targetFieldName;
         this.fieldName = fieldName;
         this.op = op;
@@ -25,9 +22,6 @@ public class ReadItemSpec {
     }
 
 
-    public Class<?> getReadQueryClass() {
-        return readQueryClass;
-    }
 
     public String getTargetFieldName() {
         return targetFieldName;

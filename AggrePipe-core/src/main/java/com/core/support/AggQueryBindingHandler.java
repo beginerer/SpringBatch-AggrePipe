@@ -34,7 +34,18 @@ public class AggQueryBindingHandler {
     }
 
 
+    // 1. store
+    public void store(String SERIAL_NUMBER, String token, List<?> queryDtos) {
+        Chunk chunk = convert(Objects.requireNonNull(SERIAL_NUMBER), Objects.requireNonNull(token), Objects.requireNonNull(queryDtos));
+        Key key = new Key(SERIAL_NUMBER, token);
 
+        Chunk result = bufferMap.putIfAbsent(key, chunk);
+        logger.warn("[ERROR] key is already exist. key={}",key);
+    }
+
+
+
+    // 2. build payload
     public ChunkUpdatePayload buildPayload(String serialNumber, String token) {
         Key key = new Key(Objects.requireNonNull(serialNumber), Objects.requireNonNull(token));
         Chunk chunk = bufferMap.get(key);
@@ -45,26 +56,7 @@ public class AggQueryBindingHandler {
         return new ChunkUpdatePayload(serialNumber, List.of(chunk));
     }
 
-
-    public ChunkUpdatePayload buildPayload(String serialNumber, List<String> tokens) {
-        Objects.requireNonNull(serialNumber);
-        if(tokens == null || tokens.isEmpty())
-            throw new IllegalArgumentException("[ERROR] token is empty");
-
-        List<Chunk> chunks = new ArrayList<>();
-
-        for (String token : tokens) {
-            Key key = new Key(serialNumber, token);
-            Chunk chunk = bufferMap.get(key);
-            if(chunk == null)
-                throw new IllegalStateException("[ERROR] key is not found in bufferMap. SERIAL_NUMBER=%s, token=%s".
-                        formatted(serialNumber, token));
-            chunks.add(chunk);
-        }
-        return new ChunkUpdatePayload(serialNumber, Collections.unmodifiableList(chunks));
-    }
-
-
+    // 3. flush payload
     public void flushPayLoad(RedisWriteResultSet resultSet) {
         String serialNumber = resultSet.getScriptSerialNumber();
         List<Chunk> chunks = resultSet.getData();
@@ -74,18 +66,9 @@ public class AggQueryBindingHandler {
             Key key = new Key(serialNumber, token);
 
             Chunk result = bufferMap.remove(key);
-
-            logger.warn("[ERROR] key is not found in bufferMap. SERIAL_NUMBER={}, token={}",serialNumber, token);
+            if(result == null)
+                logger.warn("[ERROR] key is not found in bufferMap. SERIAL_NUMBER={}, token={}",serialNumber, token);
         }
-    }
-
-
-    public void store(String SERIAL_NUMBER, String token, List<?> queryDtos) {
-        Chunk chunk = convert(Objects.requireNonNull(SERIAL_NUMBER), Objects.requireNonNull(token), Objects.requireNonNull(queryDtos));
-        Key key = new Key(SERIAL_NUMBER, token);
-
-        Chunk result = bufferMap.putIfAbsent(key, chunk);
-        logger.warn("[ERROR] key is already exist. key={}",key);
     }
 
 
@@ -173,6 +156,10 @@ public class AggQueryBindingHandler {
         }
 
         return newItemUnits;
+    }
+
+    public String createToken() {
+        return UUID.randomUUID().toString();
     }
 
 

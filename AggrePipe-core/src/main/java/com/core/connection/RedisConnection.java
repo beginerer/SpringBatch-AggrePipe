@@ -22,7 +22,6 @@ import java.util.concurrent.*;
 
 
 /**
- * <p>This class is not thread-safe.</p>
  * <p>auto flush is true.</p>
  */
 public class RedisConnection  {

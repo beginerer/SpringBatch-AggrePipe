@@ -1,4 +1,4 @@
-package com.core.entity;
+package com.core.example.entity;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -6,22 +6,27 @@ import lombok.NoArgsConstructor;
 
 @Entity
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class User {
+public class User extends BaseEntity {
+
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long userId;
 
-    private String userName;
+    @Column(unique = true)
+    private Long loginId;
 
     private String password;
 
-    @Enumerated(value = EnumType.STRING)
     private Gender gender;
 
+    private int age;
 
-    public User(String userName, String password, Gender gender) {
-        this.userName = userName;
+
+    public User(Long loginId, String password, Gender gender, int age) {
+        this.loginId = loginId;
         this.password = password;
         this.gender = gender;
+        this.age = age;
     }
+
 }

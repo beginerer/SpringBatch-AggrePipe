@@ -159,6 +159,7 @@ public class AggregationQuerySupport implements ImportAware {
             return new AggQueryMetadata(clazz.getSimpleName(), ann.groupByKeys(), false, itemSpecs);
         }
     }
+
     public ReadQueryMetadata buildReadQueryMetaData(Class<?> clazz) {
         if(clazz.isRecord()) {
             List<RecordComponent> readFields = getReadFields(clazz.getRecordComponents());
@@ -166,7 +167,7 @@ public class AggregationQuerySupport implements ImportAware {
 
             for(RecordComponent readField : readFields) {
                 ReadAggField annotation = readField.getDeclaredAnnotation(ReadAggField.class);
-                ReadItemSpec itemSpec = new ReadItemSpec(clazz, annotation.originalFieldName(), readField.getName(), annotation.op(), annotation.type());
+                ReadItemSpec itemSpec = new ReadItemSpec(annotation.originalFieldName(), readField.getName(), annotation.op(), annotation.type());
                 itemSpecs.add(itemSpec);
             }
             ReadQuery ann = clazz.getDeclaredAnnotation(ReadQuery.class);
@@ -177,7 +178,7 @@ public class AggregationQuerySupport implements ImportAware {
 
             for (Field readField : readFields) {
                 ReadAggField annotation = readField.getDeclaredAnnotation(ReadAggField.class);
-                ReadItemSpec itemSpec = new ReadItemSpec(clazz, annotation.originalFieldName(), readField.getName(), annotation.op(), annotation.type());
+                ReadItemSpec itemSpec = new ReadItemSpec(annotation.originalFieldName(), readField.getName(), annotation.op(), annotation.type());
                 itemSpecs.add(itemSpec);
             }
             ReadQuery ann = clazz.getDeclaredAnnotation(ReadQuery.class);
