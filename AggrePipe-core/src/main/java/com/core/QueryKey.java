@@ -1,5 +1,6 @@
 package com.core;
 
+import com.core.operation.ValueType;
 import org.springframework.util.ClassUtils;
 
 import java.util.Objects;
@@ -11,16 +12,14 @@ public class QueryKey {
 
     private final String fieldName;
 
-    private final Class<?> dataType;
+    private final ValueType dataType;
 
 
-    public QueryKey(Class<?> queryClass, String fieldName, Class<?> dataType) {
-        this.queryClass = Objects.requireNonNull(queryClass);
-        this.fieldName = Objects.requireNonNull(fieldName);
-        Objects.requireNonNull(dataType);
-        this.dataType = ClassUtils.resolvePrimitiveIfNecessary(dataType);
+    public QueryKey(Class<?> queryClass, String fieldName, ValueType dataType) {
+        this.queryClass = queryClass;
+        this.fieldName = fieldName;
+        this.dataType = dataType;
     }
-
 
     public Class<?> getQueryClass() {
         return queryClass;
@@ -30,7 +29,7 @@ public class QueryKey {
         return fieldName;
     }
 
-    public Class<?> getDataType() {
+    public ValueType getDataType() {
         return dataType;
     }
 

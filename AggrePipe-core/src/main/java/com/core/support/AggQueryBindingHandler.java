@@ -128,7 +128,6 @@ public class AggQueryBindingHandler {
 
             List<ItemUnit> units = e;
             ItemUnit base = units.get(0);
-            Operation[] operations = base.getOperations();
             ValueType valueType = base.getValueType();
 
 
@@ -148,7 +147,7 @@ public class AggQueryBindingHandler {
                     max_lv = Math.max(max_lv, unit_lv);
                     min_lv = Math.min(min_lv, unit_lv);
                 }
-                cal = new ItemUnit.Calculation(sum_lv, max_lv, min_lv, null, null, null);
+                cal = new ItemUnit.Calculation(sum_lv, max_lv, min_lv, -1, -1, -1);
             }else if(valueType == ValueType.DOUBLE) {
                 double dv = base.getDv();
                 double sum_dv = dv;
@@ -163,20 +162,18 @@ public class AggQueryBindingHandler {
                     max_dv = Math.max(max_dv, unit_dv);
                     min_dv = Math.min(min_dv, unit_dv);
                 }
-                cal = new ItemUnit.Calculation(null, null, null, sum_dv, max_dv, min_dv);
+                cal = new ItemUnit.Calculation(-1, -1, -1, sum_dv, max_dv, min_dv);
             }else
                 throw new IllegalStateException("[ERROR] Unsupported value type. valueType=%s".
                         formatted(valueType));
 
 
-            ItemUnit combine = new ItemUnit(base.getFieldName(), operations, valueType, null, null, true, cal);
+            ItemUnit combine = new ItemUnit(base.getFieldName(), base.getMask(), valueType, -1, -1, true, cal);
             newItemUnits.add(combine);
         }
 
         return newItemUnits;
     }
-
-
 
 
 

@@ -11,13 +11,13 @@ public class ItemUnit {
 
     private String fieldName;
 
-    private Operation[] operations;
+    private int mask;
 
     private ValueType valueType;
 
-    private Long lv;
+    private long lv;
 
-    private Double dv;
+    private double dv;
 
     private boolean preCalculate;
 
@@ -25,9 +25,9 @@ public class ItemUnit {
 
 
 
-    public ItemUnit(String fieldName, Operation[] operations, ValueType valueType, Long lv, Double dv) {
+    public ItemUnit(String fieldName, Operation[] operations, ValueType valueType, long lv, double dv) {
         this.fieldName = fieldName;
-        this.operations = operations;
+        this.mask = Operation.resolveMasking(operations);
         this.valueType = valueType;
         this.lv = lv;
         this.dv = dv;
@@ -35,9 +35,9 @@ public class ItemUnit {
         this.calculation = null;
     }
 
-    public ItemUnit(String fieldName, Operation[] operations, ValueType valueType, Long lv, Double dv, boolean preCalculate, Calculation calculation) {
+    public ItemUnit(String fieldName, int mask, ValueType valueType, long lv, double dv, boolean preCalculate, Calculation calculation) {
         this.fieldName = fieldName;
-        this.operations = operations;
+        this.mask = mask;
         this.valueType = valueType;
         this.lv = lv;
         this.dv = dv;
@@ -51,19 +51,19 @@ public class ItemUnit {
         return fieldName;
     }
 
-    public Operation[] getOperations() {
-        return operations;
+    public int getMask() {
+        return mask;
     }
 
     public ValueType getValueType() {
         return valueType;
     }
 
-    public Long getLv() {
+    public long getLv() {
         return lv;
     }
 
-    public Double getDv() {
+    public double getDv() {
         return dv;
     }
 
@@ -80,7 +80,7 @@ public class ItemUnit {
     public String toString() {
         return "ItemUnit{" +
                 "fieldName='" + fieldName + '\'' +
-                ", operations=" + Arrays.toString(operations) +
+                ", mask=" + mask +
                 ", valueType=" + valueType +
                 ", lv=" + lv +
                 ", dv=" + dv +
@@ -90,19 +90,17 @@ public class ItemUnit {
     }
 
 
-
-
     public static class Calculation {
-        private Long sum_lv;
-        private Long max_lv;
-        private Long min_lv;
+        private long sum_lv;
+        private long max_lv;
+        private long min_lv;
 
-        private Double sum_dv;
-        private Double max_dv;
-        private Double min_dv;
+        private double sum_dv;
+        private double max_dv;
+        private double min_dv;
 
 
-        public Calculation(Long sum_lv, Long max_lv, Long min_lv, Double sum_dv, Double max_dv, Double min_dv) {
+        public Calculation(long sum_lv, long max_lv, long min_lv, double sum_dv, double max_dv, double min_dv) {
             this.sum_lv = sum_lv;
             this.max_lv = max_lv;
             this.min_lv = min_lv;
@@ -111,29 +109,29 @@ public class ItemUnit {
             this.min_dv = min_dv;
         }
 
-        public Long getSum_lv() {
+
+        public long getSum_lv() {
             return sum_lv;
         }
 
-        public Long getMax_lv() {
+        public long getMax_lv() {
             return max_lv;
         }
 
-        public Long getMin_lv() {
+        public long getMin_lv() {
             return min_lv;
         }
 
-        public Double getSum_dv() {
+        public double getSum_dv() {
             return sum_dv;
         }
 
-        public Double getMax_dv() {
+        public double getMax_dv() {
             return max_dv;
         }
 
-        public Double getMin_dv() {
+        public double getMin_dv() {
             return min_dv;
         }
-
     }
 }

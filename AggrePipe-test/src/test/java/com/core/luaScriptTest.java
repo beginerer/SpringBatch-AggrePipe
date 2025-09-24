@@ -129,7 +129,7 @@ public class luaScriptTest {
     @Test
     @DisplayName("evalsha test")
     public void test2() throws ExecutionException, InterruptedException, TimeoutException {
-        String serialNumber = "serialNumber";
+        String serialNumber = "serialNumber1";
         String idempKey = "idempKey";
         int ttl = 5000;
         int number = 1000;

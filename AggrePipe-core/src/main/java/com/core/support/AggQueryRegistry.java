@@ -68,20 +68,20 @@ public class AggQueryRegistry {
         List<ItemUnit> itemUnits = new ArrayList<>();
 
         for (QueryKey queryKey : queryKeys) {
-            if(queryKey.getDataType() == Long.class) {
+            if(queryKey.getDataType() == ValueType.LONG) {
                 LongAccessor longAcc = forLongWrite(queryKey);
                 long value = longAcc.get(queryDto);
 
                 ItemSpec itemSpec = aggKeyItemMap.get(queryKey);
-                ItemUnit itemUnit = new ItemUnit(itemSpec.getFieldName(), itemSpec.getOp(), itemSpec.getValueType(), value, null);
+                ItemUnit itemUnit = new ItemUnit(itemSpec.getFieldName(), itemSpec.getOp(), itemSpec.getValueType(), value, -1);
                 itemUnits.add(itemUnit);
 
-            }else if(queryKey.getDataType() == Double.class) {
+            }else if(queryKey.getDataType() == ValueType.DOUBLE) {
                 DoubleAccessor doubleAcc = forDoubleWrite(queryKey);
                 double value = doubleAcc.get(queryDto);
 
                 ItemSpec itemSpec = aggKeyItemMap.get(queryKey);
-                ItemUnit itemUnit = new ItemUnit(itemSpec.getFieldName(), itemSpec.getOp(), itemSpec.getValueType(), null, value);
+                ItemUnit itemUnit = new ItemUnit(itemSpec.getFieldName(), itemSpec.getOp(), itemSpec.getValueType(), -1, value);
                 itemUnits.add(itemUnit);
             }else
                 throw new IllegalArgumentException("[ERROR] Unsupported data type. dataType=%s".formatted(queryKey.getDataType()));
@@ -104,11 +104,11 @@ public class AggQueryRegistry {
                         formatted(queryClass, key.getQueryClass()));
 
             try {
-                if(key.getDataType() == Long.class || key.getDataType() == long.class) {
+                if(key.getDataType() == ValueType.LONG) {
                     long v = Long.parseLong(value);
                     LongSetter longSetter = forLongSet(key);
                     longSetter.set(queryDto, v);
-                }else if(key.getDataType() == Double.class || key.getDataType() == double.class){
+                }else if(key.getDataType() == ValueType.DOUBLE){
                     double v = Double.parseDouble(value);
                     DoubleSetter doubleSetter = forDoubleSet(key);
                     doubleSetter.set(queryDto, v);
@@ -167,16 +167,14 @@ public class AggQueryRegistry {
                 String field = key.field();
                 ValueType vt = key.type();
 
-                Class<?> valueType = toPrimitiveClass(vt);
-                QueryKey queryKey = new QueryKey(queryClass, field, long.class);
+                QueryKey queryKey = new QueryKey(queryClass, field, vt);
                 groupByKeys.add(queryKey);
             }
             aggQueryGroupByKeyData.put(queryClass, groupByKeys);
 
             for (ItemSpec item : metadata.getItems()) {
-                Class<?> valueType = toPrimitiveClass(item.getValueType());
 
-                QueryKey queryKey = new QueryKey(queryClass, item.getFieldName(), valueType);
+                QueryKey queryKey = new QueryKey(queryClass, item.getFieldName(), item.getValueType());
                 queryKeys.add(queryKey);
                 aggKeyItemMap.put(queryKey, item);
             }
@@ -197,16 +195,14 @@ public class AggQueryRegistry {
                 String field = key.field();
                 ValueType vt = key.type();
 
-                Class<?> valueType = toPrimitiveClass(vt);
-                QueryKey queryKey = new QueryKey(queryClass, field, valueType);
+                QueryKey queryKey = new QueryKey(queryClass, field, vt);
                 groupByKeys.add(queryKey);
             }
             readQueryGroupByKeyData.put(queryClass, groupByKeys);
 
             for (ReadItemSpec item : metadata.getItems()) {
-                Class<?> valueType = toPrimitiveClass(item.getValueType());
 
-                QueryKey queryKey = new QueryKey(queryClass, item.getFieldName(), valueType);
+                QueryKey queryKey = new QueryKey(queryClass, item.getFieldName(), item.getValueType());
                 queryKeys.add(queryKey);
                 readKeyItemMap.putIfAbsent(queryKey, item);
 
@@ -264,13 +260,10 @@ public class AggQueryRegistry {
 
 
 
-    private Object createWriteLambda(Class<?> queryClass, String fieldName, Class<?> returnType) {
+    private Object createWriteLambda(Class<?> queryClass, String fieldName, ValueType valueType) {
         try {
-            Class<?> wrappedType = ClassUtils.resolvePrimitiveIfNecessary(returnType);
-            if (wrappedType != Long.class && wrappedType != Double.class) {
-                throw new IllegalArgumentException("primitiveRetType must be long.class or double.class");
-            }
-            boolean isLong = (wrappedType == Long.class);
+
+            boolean isLong = (valueType == ValueType.LONG);
             Class<?> prim = isLong ? long.class : double.class;
 
             MethodHandles.Lookup base = MethodHandles.lookup();
@@ -295,13 +288,10 @@ public class AggQueryRegistry {
         }
     }
 
-    private Object createReadLambda(Class<?> queryClass, String fieldName, Class<?> acceptedType) {
+    private Object createReadLambda(Class<?> queryClass, String fieldName, ValueType acceptedType) {
         try {
-            Class<?> wrappedType = ClassUtils.resolvePrimitiveIfNecessary(acceptedType);
-            if (wrappedType != Long.class && wrappedType != Double.class) {
-                throw new IllegalArgumentException("primitiveRetType must be long.class or double.class");
-            }
-            boolean isLong = (wrappedType == Long.class);
+
+            boolean isLong = (acceptedType == ValueType.LONG);
             Class<?> prim = isLong ? long.class : double.class;
 
             MethodHandles.Lookup base = MethodHandles.lookup();
@@ -422,12 +412,12 @@ public class AggQueryRegistry {
             ValueType type = key.type();
 
             if(type == ValueType.LONG) {
-                QueryKey queryKey = new QueryKey(queryClass, field, long.class);
+                QueryKey queryKey = new QueryKey(queryClass, field, type);
                 LongAccessor acc = forLongWrite(queryKey);
                 groupKeys.add(String.valueOf(acc.get(queryDto)));
 
             }else if(type == ValueType.DOUBLE) {
-                QueryKey queryKey = new QueryKey(queryClass, field, double.class);
+                QueryKey queryKey = new QueryKey(queryClass, field, type);
                 DoubleAccessor acc = forDoubleWrite(queryKey);
                 groupKeys.add(String.valueOf(acc.get(queryDto)));
 
@@ -437,16 +427,6 @@ public class AggQueryRegistry {
         return "["+SERIAL_NUMBER +"]" + groupKeys.stream().collect(Collectors.joining(","));
     }
 
-
-    public Class<?> toPrimitiveClass(ValueType vt) {
-        if(vt == ValueType.LONG) {
-            return long.class;
-        }else if(vt == ValueType.DOUBLE) {
-            return double.class;
-        }else
-            throw new IllegalStateException("[ERROR] Unsupported value type. valueType=%s".
-                    formatted(vt));
-    }
 
     public List<QueryKey> getReadQueryKeyData(Object readQuery) {
 

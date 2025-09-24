@@ -65,9 +65,8 @@ public class ReadQueryBindingHandler {
                     if(value == null)
                         throw new IllegalStateException("[ERROR] %s filed is not included at Redis".formatted(redisFieldName));
 
-                    Class<?> valueType = registry.toPrimitiveClass(item.getValueType());
 
-                    QueryKey queryKey = new QueryKey(queryClass, fieldName, valueType);
+                    QueryKey queryKey = new QueryKey(queryClass, fieldName, item.getValueType());
                     valueMap.putIfAbsent(queryKey, value);
                 }
 
@@ -98,12 +97,6 @@ public class ReadQueryBindingHandler {
 
         return map;
     }
-
-
-
-
-
-
 
 
 

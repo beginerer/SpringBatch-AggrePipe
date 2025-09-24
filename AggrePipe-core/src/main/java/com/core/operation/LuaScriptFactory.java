@@ -22,6 +22,14 @@ public class LuaScriptFactory {
                 "local chunks = cjson.decode(ARGV[2])\n" +
                 "\n" +
                 "\n" +
+                "\n" +
+                "local band = bit.band\n" +
+                "local lshift = bit.lshift\n" +
+                "\n" +
+                "local function has(mask, bitIndex)\n" +
+                "  return band(mask, lshift(1, bitIndex)) ~= 0\n" +
+                "end\n" +
+                "\n" +
                 "local function hmax(key, field, v)\n" +
                 "  local cur = redis.call('HGET', key, field)\n" +
                 "  local nv = tonumber(cur)\n" +
@@ -69,40 +77,37 @@ public class LuaScriptFactory {
                 "    for groupKey, itemUnits in pairs(items) do\n" +
                 "      for j = 1, #itemUnits do\n" +
                 "        local itemUnit  = itemUnits[j]\n" +
-                "\n" +
                 "        local fieldName = itemUnit.fieldName\n" +
-                "        local sum_fieldName = \"SUM:\"..fieldName\n" +
-                "        local max_fieldName = \"MAX:\"..fieldName\n" +
-                "        local min_fieldName = \"MIN:\"..fieldName\n" +
+                "\n" +
+                "        local sum_fieldName = 'SUM:'..fieldName\n" +
+                "        local max_fieldName = 'MAX:'..fieldName\n" +
+                "        local min_fieldName = 'MIN:'..fieldName\n" +
                 "\n" +
                 "\n" +
-                "        local operations = itemUnit.operations\n" +
+                "        local mask = itemUnit.mask\n" +
                 "        local vtype = itemUnit.valueType\n" +
                 "        local cal = itemUnit.calculation\n" +
                 "\n" +
-                "        if vtype == \"LONG\" then\n" +
-                "          for k = 1, #operations do\n" +
-                "            local op = operations[k]\n" +
                 "\n" +
-                "            if op == \"SUM\" then\n" +
-                "              redis.call('HINCRBY', groupKey, sum_fieldName, tonumber(cal.sum_lv))\n" +
-                "            elseif op == \"MAX\" then\n" +
-                "              hmax(groupKey, max_fieldName, cal.max_lv)\n" +
-                "            elseif op == \"MIN\" then\n" +
-                "              hmin(groupKey, min_fieldName, cal.min_lv)\n" +
-                "            end\n" +
+                "        if vtype == \"LONG\" then\n" +
+                "          if has(mask, 0) then\n" +
+                "            redis.call('HINCRBY', groupKey, sum_fieldName, tonumber(cal.sum_lv))\n" +
+                "          end\n" +
+                "          if has(mask, 1) then\n" +
+                "            hmax(groupKey, max_fieldName, cal.max_lv)\n" +
+                "          end\n" +
+                "          if has(mask, 2) then\n" +
+                "            hmin(groupKey, min_fieldName, cal.min_lv)\n" +
                 "          end\n" +
                 "        elseif vtype == \"DOUBLE\" then\n" +
-                "          for k = 1, #operations do\n" +
-                "            local op = operations[k]\n" +
-                "\n" +
-                "            if op == \"SUM\" then\n" +
-                "              redis.call('HINCRBYFLOAT', groupKey, sum_fieldName, tonumber(cal.sum_dv))\n" +
-                "            elseif op == \"MAX\" then\n" +
-                "              hmax(groupKey, max_fieldName, tonumber(cal.max_dv))\n" +
-                "            elseif op == \"MIN\" then\n" +
-                "              hmin(groupKey, min_fieldName, tonumber(cal.min_dv))\n" +
-                "            end\n" +
+                "          if has(mask, 0) then\n" +
+                "            redis.call('HINCRBYFLOAT', groupKey, sum_fieldName, tonumber(cal.sum_dv))\n" +
+                "          end\n" +
+                "          if has(mask, 1) then\n" +
+                "            hmax(groupKey, max_fieldName, tonumber(cal.max_dv))\n" +
+                "          end\n" +
+                "          if has(mask, 2) then\n" +
+                "            hmin(groupKey, min_fieldName, tonumber(cal.min_dv))\n" +
                 "          end\n" +
                 "        end\n" +
                 "      end\n" +
