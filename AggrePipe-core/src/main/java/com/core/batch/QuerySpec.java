@@ -1,9 +1,6 @@
 package com.core.batch;
 
-import com.querydsl.core.types.EntityPath;
-import com.querydsl.core.types.Expression;
-import com.querydsl.core.types.OrderSpecifier;
-import com.querydsl.core.types.Predicate;
+import com.querydsl.core.types.*;
 import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
@@ -21,9 +18,7 @@ public class QuerySpec<T> {
 
     private List<Predicate> where;
 
-    private Predicate cursor;
-
-    private List<EntityPath<?>> join;
+    private List<JoinSpec> join;
 
 
     public QuerySpec(String name) {
@@ -33,7 +28,7 @@ public class QuerySpec<T> {
     }
 
     public JPAQuery<T> createQuery(JPAQueryFactory qf) {
-        if(select == null || from == null || cursor == null)
+        if(select == null || from == null )
             throw new IllegalStateException("[ERROR] select/from/cursor is empty");
 
         JPAQuery<T> q = qf.select(select).from(from);
@@ -41,7 +36,9 @@ public class QuerySpec<T> {
 
         if(join !=null) {
             for(int i=0; i<join.size(); i++) {
-                q.innerJoin(join.get(i));
+                JoinSpec joinSpec = join.get(i);
+
+                q.innerJoin(joinSpec.target, joinSpec.alias);
             }
         }
 
@@ -54,8 +51,8 @@ public class QuerySpec<T> {
     }
 
 
-    public QuerySpec<T> select(EntityPath<T> entityPath) {
-        this.select = entityPath;
+    public QuerySpec<T> select(Expression<T> expression) {
+        this.select = expression;
         return this;
     }
 
@@ -69,14 +66,28 @@ public class QuerySpec<T> {
         return this;
     }
 
-    public QuerySpec<T> cursor(Predicate predicate) {
-        this.cursor = predicate;
+
+    public <P> QuerySpec<T> innerJoin(EntityPath<P> target, Path<P> alias) {
+        this.join.add(new JoinSpec(target, alias));
         return this;
     }
 
-    public QuerySpec<T> innerJoin(EntityPath<?> entityPaths) {
-        this.join.add(entityPaths);
-        return this;
+    public class JoinSpec<P> {
+        private EntityPath<P> target;
+        private Path<P> alias;
+
+        public EntityPath<?> getTarget() {
+            return target;
+        }
+
+        public Path<?> getAlias() {
+            return alias;
+        }
+
+        public JoinSpec(EntityPath<P> target, Path<P> alias) {
+            this.target = target;
+            this.alias = alias;
+        }
     }
 
 }

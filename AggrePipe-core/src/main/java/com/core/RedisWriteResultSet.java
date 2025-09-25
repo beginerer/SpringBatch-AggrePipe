@@ -32,4 +32,13 @@ public class RedisWriteResultSet {
     public boolean isSuccess() {
         return success;
     }
+
+    @Override
+    public String toString() {
+        return "RedisWriteResultSet{" +
+                "scriptSerialNumber='" + scriptSerialNumber + '\'' +
+                ", data=" + data +
+                ", success=" + success +
+                '}';
+    }
 }

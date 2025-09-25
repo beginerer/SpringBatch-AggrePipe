@@ -501,9 +501,10 @@ public class AggregationQuerySupport implements ImportAware {
             if(fieldType != Double.class)
                 throw new BeanDefinitionValidationException("[ERROR] Unsupported valueType. valueType=%s, fieldType=%s".
                         formatted(valueType.name(), fieldType.getName()));
-        } else {
-            throw new BeanDefinitionValidationException("[ERROR] Unsupported valueType. valueType=%s, fieldType=%s".
-                    formatted(valueType.name(), fieldType.getName()));
+        }else if(valueType == ValueType.STRING) {
+            if(fieldType != String.class)
+                throw new BeanDefinitionValidationException("[ERROR] Unsupported valueType. valueType=%s, fieldType=%s".
+                        formatted(valueType.name(), fieldType.getName()));
         }
     }
 

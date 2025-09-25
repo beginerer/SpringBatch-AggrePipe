@@ -13,20 +13,20 @@ public class User extends BaseEntity {
     private Long userId;
 
     @Column(unique = true)
-    private Long loginId;
+    private String loginId;
 
     private String password;
 
+    @Enumerated(value = EnumType.STRING)
     private Gender gender;
 
-    private int age;
+    private Long age;
 
 
-    public User(Long loginId, String password, Gender gender, int age) {
+    public User(String loginId, String password, Gender gender, Long age) {
         this.loginId = loginId;
         this.password = password;
         this.gender = gender;
         this.age = age;
     }
-
 }

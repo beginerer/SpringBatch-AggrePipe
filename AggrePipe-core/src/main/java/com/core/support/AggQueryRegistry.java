@@ -2,6 +2,7 @@ package com.core.support;
 
 import com.core.*;
 import com.core.annotaion.GroupByKey;
+import com.core.batch.QuerySpec;
 import com.core.operation.ValueType;
 import org.springframework.util.ClassUtils;
 
@@ -263,23 +264,36 @@ public class AggQueryRegistry {
     private Object createWriteLambda(Class<?> queryClass, String fieldName, ValueType valueType) {
         try {
 
-            boolean isLong = (valueType == ValueType.LONG);
-            Class<?> prim = isLong ? long.class : double.class;
+            if(valueType == ValueType.STRING) {
+                MethodHandles.Lookup base = MethodHandles.lookup();
+                MethodHandles.Lookup lookup = MethodHandles.privateLookupIn(queryClass, base);
 
-            MethodHandles.Lookup base = MethodHandles.lookup();
-            MethodHandles.Lookup lookup = MethodHandles.privateLookupIn(queryClass, base);
+                MethodHandle impl = findTargetGetHandle(lookup, queryClass, fieldName);
+                MethodType erased = MethodType.methodType(String.class, Object.class);
+                MethodType dyn = MethodType.methodType(String.class, queryClass);
 
-            MethodHandle impl = findTargetGetHandle(lookup, queryClass, fieldName);
-            MethodType erased = MethodType.methodType(prim, Object.class);
-            MethodType dyn = MethodType.methodType(prim, queryClass);
+                CallSite cs = LambdaMetafactory.metafactory(lookup, "get", MethodType.methodType(StringAccessor.class), erased, impl, dyn);
+                return (StringAccessor) cs.getTarget().invokeExact();
 
-            Class<?> iface = isLong ? LongAccessor.class : DoubleAccessor.class;
-            CallSite cs = LambdaMetafactory.metafactory(lookup, "get", MethodType.methodType(iface), erased, impl, dyn);
+            }else {
+                boolean isLong = (valueType == ValueType.LONG);
+                Class<?> prim = isLong ? long.class : double.class;
 
-            if (isLong) {
-                return (LongAccessor) cs.getTarget().invokeExact();
-            } else {
-                return (DoubleAccessor) cs.getTarget().invokeExact();
+                MethodHandles.Lookup base = MethodHandles.lookup();
+                MethodHandles.Lookup lookup = MethodHandles.privateLookupIn(queryClass, base);
+
+                MethodHandle impl = findTargetGetHandle(lookup, queryClass, fieldName);
+                MethodType erased = MethodType.methodType(prim, Object.class);
+                MethodType dyn = MethodType.methodType(prim, queryClass);
+
+                Class<?> iface = isLong ? LongAccessor.class : DoubleAccessor.class;
+                CallSite cs = LambdaMetafactory.metafactory(lookup, "get", MethodType.methodType(iface), erased, impl, dyn);
+
+                if (isLong) {
+                    return (LongAccessor) cs.getTarget().invokeExact();
+                } else {
+                    return (DoubleAccessor) cs.getTarget().invokeExact();
+                }
             }
         } catch (IllegalAccessException | LambdaConversionException e) {
             throw new RuntimeException(e);
@@ -400,6 +414,11 @@ public class AggQueryRegistry {
         return (DoubleSetter) CACHE.get(queryKey);
     }
 
+    private StringAccessor forStringWrite(QueryKey queryKey) {
+        return (StringAccessor) CACHE.get(queryKey);
+    }
+
+
 
 
 
@@ -420,6 +439,11 @@ public class AggQueryRegistry {
                 QueryKey queryKey = new QueryKey(queryClass, field, type);
                 DoubleAccessor acc = forDoubleWrite(queryKey);
                 groupKeys.add(String.valueOf(acc.get(queryDto)));
+
+            }else if(type == ValueType.STRING) {
+                QueryKey queryKey = new QueryKey(queryClass, field, type);
+                StringAccessor acc = forStringWrite(queryKey);
+                groupKeys.add(acc.get(queryDto));
 
             }else
                 throw new IllegalStateException("[ERROR] Unsupported value type. valueType=%s".formatted(type));

@@ -1,17 +1,14 @@
 package com.core;
 
-import org.assertj.core.api.Assertions;
+import com.core.example.entity.Orders;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 
-import java.util.Arrays;
+import java.util.List;
 
+@SpringBootTest
 public class sampleStest {
 
 
-    @Test
-    public void Test() {
-        String name = Long.class.getName();
-
-        System.out.println(name);
-    }
 }

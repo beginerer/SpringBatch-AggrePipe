@@ -1,6 +1,6 @@
 package com.core.batch;
 
-public interface KeyExtractor<Key, K> {
+public interface KeyExtractor<T, K> {
 
-    K extract(Key t);
+    K extract(T t);
 }

@@ -1,6 +1,4 @@
-package com.core;
-
-import com.core.annotaion.GroupByKey;
+package com.core.example.dto;
 
 import java.time.LocalDateTime;
 import java.util.*;

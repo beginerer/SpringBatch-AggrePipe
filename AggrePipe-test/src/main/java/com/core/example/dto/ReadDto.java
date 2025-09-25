@@ -1,4 +1,4 @@
-package com.core;
+package com.core.example.dto;
 
 
 import com.core.annotaion.*;

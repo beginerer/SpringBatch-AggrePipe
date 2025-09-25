@@ -1,4 +1,4 @@
-package com.core;
+package com.core.example.dto;
 
 
 import com.core.annotaion.AggField;
@@ -6,7 +6,6 @@ import com.core.annotaion.AggQuery;
 import com.core.annotaion.GroupByKey;
 import com.core.operation.Operation;
 import com.core.operation.ValueType;
-
 import java.time.LocalDateTime;
 
 

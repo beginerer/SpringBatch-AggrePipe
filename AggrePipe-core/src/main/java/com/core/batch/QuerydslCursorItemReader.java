@@ -8,12 +8,16 @@ import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import org.springframework.batch.item.*;
 import org.springframework.batch.item.support.AbstractItemStreamItemReader;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
 import java.util.List;
 
 
 
 public class QuerydslCursorItemReader<T, K> extends AbstractItemStreamItemReader<AggQueryBindingHandler.Key> {
+
+    private String serialNumber;
 
     private String name;
 
@@ -31,12 +35,11 @@ public class QuerydslCursorItemReader<T, K> extends AbstractItemStreamItemReader
 
     private AggQueryBindingHandler handler;
 
-    private String serialNumber;
-
-
 
     public QuerydslCursorItemReader(String serialNumber, String name, JPAQueryFactory qf, QuerySpec<T> querySpec, CursorStrategy<K> cursorStrategy,
                                     KeyExtractor<T, K> keyExtractor, int chunkSize, AggQueryBindingHandler handler) {
+
+        this.serialNumber = serialNumber;
         this.name = name;
         this.qf = qf;
         this.querySpec = querySpec;
@@ -44,9 +47,7 @@ public class QuerydslCursorItemReader<T, K> extends AbstractItemStreamItemReader
         this.keyExtractor = keyExtractor;
         this.chunkSize = chunkSize;
         this.handler = handler;
-        this.serialNumber = serialNumber;
     }
-
 
     @Override
     public AggQueryBindingHandler.Key read() throws Exception, UnexpectedInputException, ParseException, NonTransientResourceException {
@@ -64,14 +65,16 @@ public class QuerydslCursorItemReader<T, K> extends AbstractItemStreamItemReader
         return new AggQueryBindingHandler.Key(serialNumber, token);
     }
 
+
     private List<T> fetchNextPage() {
         JPAQuery<T> query = querySpec.createQuery(qf);
 
-        Predicate cursor = cursorStrategy.buildCursorPredicate(lastKey);
-        OrderSpecifier<?>[] order = cursorStrategy.orderBy();
-
-        if(cursor != null)
+        if(lastKey != null){
+            Predicate cursor = cursorStrategy.buildCursorPredicate(lastKey);
             query.where(cursor);
+        }
+
+        OrderSpecifier<?>[] order = cursorStrategy.orderBy();
 
         return query.orderBy(order).limit(chunkSize).fetch();
     }

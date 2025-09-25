@@ -3,6 +3,8 @@ package com.core;
 import com.core.config.RedisClientConfig;
 import com.core.config.TimeoutConfig;
 import com.core.connection.RedisConnection;
+import com.core.example.dto.QueryDto;
+import com.core.example.dto.QueryDtoFactory;
 import com.core.operation.*;
 import com.core.support.AggQueryBindingHandler;
 import com.redis.testcontainers.RedisContainer;
@@ -30,7 +32,7 @@ import java.util.concurrent.TimeoutException;
 
 
 @Testcontainers
-@SpringBootTest(classes = com.core.Config.class)
+@SpringBootTest
 public class luaScriptTest {
 
     private RedisAsyncCommands<String, String> async;

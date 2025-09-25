@@ -179,6 +179,14 @@ public class AggQueryBindingHandler {
             this.token = token;
         }
 
+        public String getSERIAL_NUMBER() {
+            return SERIAL_NUMBER;
+        }
+
+        public String getToken() {
+            return token;
+        }
+
         @Override
         public boolean equals(Object object) {
             if (object == null || getClass() != object.getClass()) return false;

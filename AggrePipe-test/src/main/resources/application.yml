@@ -1,0 +1,50 @@
+spring:
+  profiles:
+    active: test
+
+  datasource:
+    url: jdbc:mysql://localhost:3306/testDB?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&characterEncoding=UTF-8
+    username: root
+    password: 0IzRxaAlqqxNCYg
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      idle-timeout: 30000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+
+  jpa:
+    database-platform: org.hibernate.dialect.MySQLDialect
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+        show_sql: true
+        jdbc:
+          batch_size: 50
+    open-in-view: false
+
+  logging:
+    level:
+      org.hibernate.SQL: debug
+      org.hibernate.type.descriptor.sql.BasicBinder: trace
+
+  batch:
+    job:
+      enabled: true
+      name: ItemSaleReader
+    jdbc:
+      initialize-schema: always
+
+    defaults:
+      serialNumber: SN-001
+      readerName: ItemSaleReader
+      idempKey : idempKey
+      chunkSize: 500
+      from: 2025-09-25T07:00:00
+      to: 2025-09-25T08:00:00
+
+redis:
+  url: redis://0IzRxaAlqqxNCYg:@localhost:6379
