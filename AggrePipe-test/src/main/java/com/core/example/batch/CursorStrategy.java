@@ -1,4 +1,4 @@
-package com.core.batch;
+package com.core.example.batch;
 
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.Predicate;

@@ -1,4 +1,4 @@
-package com.core.batch;
+package com.core.example.batch;
 
 import com.core.ChunkUpdatePayload;
 import com.core.RedisWriteResultSet;

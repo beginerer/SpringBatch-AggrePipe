@@ -1,9 +1,7 @@
 package com.core.example.query;
 
-import com.core.batch.QueryDslCursorItemWriter;
 import com.core.connection.RedisConnection;
 import com.core.operation.LuaScript;
-import com.core.operation.LuaScriptForReading;
 import com.core.support.AggQueryBindingHandler;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.beans.factory.annotation.Autowired;

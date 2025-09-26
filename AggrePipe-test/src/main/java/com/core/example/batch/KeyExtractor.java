@@ -1,4 +1,4 @@
-package com.core.batch;
+package com.core.example.batch;
 
 public interface KeyExtractor<T, K> {
 

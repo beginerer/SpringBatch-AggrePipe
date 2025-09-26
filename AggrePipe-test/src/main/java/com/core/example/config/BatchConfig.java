@@ -1,8 +1,6 @@
 package com.core.example.config;
 
 
-import com.core.batch.QueryDslCursorItemWriter;
-import com.core.batch.QuerydslCursorItemReader;
 import com.core.example.query.Cursor;
 import com.core.example.dto.ItemSaleForUserQueryDto;
 import com.core.example.query.QuerydslCursorItemReaderConfig;
@@ -10,7 +8,6 @@ import com.core.operation.LuaScript;
 import com.core.operation.LuaScriptFactory;
 import com.core.support.AggQueryBindingHandler;
 import lombok.RequiredArgsConstructor;
-import org.springframework.batch.core.ChunkListener;
 import org.springframework.batch.core.ItemWriteListener;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;

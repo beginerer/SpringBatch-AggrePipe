@@ -2,9 +2,7 @@ package com.core.support;
 
 import com.core.*;
 import com.core.annotaion.GroupByKey;
-import com.core.batch.QuerySpec;
 import com.core.operation.ValueType;
-import org.springframework.util.ClassUtils;
 
 import java.lang.invoke.*;
 import java.lang.reflect.Method;

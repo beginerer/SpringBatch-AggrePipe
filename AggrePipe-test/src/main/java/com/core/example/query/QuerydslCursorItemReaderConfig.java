@@ -1,10 +1,6 @@
 package com.core.example.query;
 
 
-import com.core.batch.CursorStrategy;
-import com.core.batch.KeyExtractor;
-import com.core.batch.QuerySpec;
-import com.core.batch.QuerydslCursorItemReader;
 import com.core.example.dto.ItemSaleForUserQueryDto;
 import com.core.support.AggQueryBindingHandler;
 import com.querydsl.core.types.Projections;
